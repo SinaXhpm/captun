@@ -1,0 +1,3423 @@
+/* Captun desktop: one dark theme taken from the logo, the helm's cyan-to-blue
+   ink on the navy of its tile.
+
+   Motion is cheap on purpose: only transform and opacity ever animate, nothing
+   loops while the app sits idle (the helm turns only while sharing connects or
+   runs, spinners only while something loads), and every animation pauses
+   while the window is hidden or minimized and is off for reduced motion
+   (see "Motion" below). */
+
+:root {
+  /* The logo's tile runs from #122c63 to #040b1e: the window sits a step
+     below its middle, surfaces on it. */
+  --bg: #071430;
+  --bg-elev: #0d1f42;
+  --bg-sunken: #0a1938;
+  --bg-hover: #142c58;
+  --border: #1a3360;
+  --border-strong: #26467c;
+  --text: #e9f2ff;
+  --text-muted: #8ea6cc;
+  /* Placeholders and other quiet text, still 4.5:1 on any surface. */
+  --text-faint: #8197bd;
+  /* The logo's ink: cyan at the top, sky in the middle, blue at the bottom. */
+  --cyan: #2af3f0;
+  --sky: #1fb0f2;
+  --blue: #1c5fe6;
+  --accent: #22d3ee;
+  --accent-hover: #67e8f9;
+  --accent-soft: rgb(34 211 238 / 12%);
+  --accent-contrast: #031226;
+  /* The blue end stays light enough for the dark label on primary buttons. */
+  --accent-gradient: linear-gradient(135deg, #2af3f0 0%, #1fb0f2 55%, #2f86f2 100%);
+  --accent-gradient-hover: linear-gradient(135deg, #5ff7f4 0%, #47c1f6 55%, #4f9bf6 100%);
+  --glow: 0 0 18px rgb(30 212 249 / 45%);
+  --focus: #5fe0ff;
+  --ok: #34d399;
+  --ok-soft: rgb(52 211 153 / 13%);
+  --warn: #fbbf24;
+  --warn-soft: rgb(251 191 36 / 12%);
+  --danger: #f87171;
+  --danger-soft: rgb(248 113 113 / 13%);
+  /* Filled red with white text, 4.5:1 or better. */
+  --danger-strong: #d23c3c;
+  --muted-soft: rgb(142 166 204 / 12%);
+  /* Small and tight: a soft lift, no wide blur to paint. */
+  --shadow: 0 1px 2px rgb(0 0 0 / 30%), 0 4px 12px -6px rgb(0 0 0 / 45%);
+  --shadow-pop: 0 12px 32px -8px rgb(0 0 0 / 55%);
+  --radius: 8px;
+  --radius-lg: 12px;
+  /* One type scale: hints and badges, secondary text, body, headings, the
+     hero's status line, the About name. */
+  --fs-xs: 11px;
+  --fs-sm: 12px;
+  --fs-md: 13px;
+  --fs-lg: 14px;
+  --fs-xl: 16px;
+  --fs-2xl: 20px;
+  --font: "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, "Inter", "Ubuntu", sans-serif;
+  --mono: "Cascadia Mono", "JetBrains Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Thin scrollbars in the theme's colours, without the system's grey arrows.
+   The thumb stands out 3:1 or more from the window, cards and sunken boxes,
+   so a page that scrolls shows it. */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 10px;
+  background: #4e6ea3 padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #6582b3 padding-box;
+}
+
+::-webkit-scrollbar-button {
+  display: none;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: var(--fs-md) / 1.45 var(--font);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2 {
+  margin: 0;
+  font-weight: 600;
+}
+
+h1 {
+  font-size: var(--fs-2xl);
+}
+
+h2 {
+  font-size: var(--fs-lg);
+}
+
+p {
+  margin: 0 0 8px;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+/* One focus ring everywhere: bright, off the edge, following the shape. */
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+::placeholder {
+  color: var(--text-faint);
+  opacity: 1;
+}
+
+::selection {
+  background: rgb(34 211 238 / 35%);
+}
+
+/* ---- Motion -------------------------------------------------------------- */
+
+/* One-shot entrances for menus, dialogs and notifications: opacity and a few
+   pixels of movement, nothing that has to be painted again. */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@keyframes drop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+/* A hidden or minimized window (motion.ts sets the class): whatever still
+   turns stops until the window shows again. */
+.window-hidden *,
+.window-hidden *::before,
+.window-hidden *::after {
+  animation-play-state: paused !important;
+}
+
+/* Asked for less motion: nothing moves at all. Busy states still say so in
+   words ("Turning on…", "Checking…"). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after,
+  ::backdrop {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+.mono {
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.muted {
+  color: var(--text-muted);
+  margin: 0;
+}
+
+/* ---- Shell: a slim top bar, the page below ------------------------------ */
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* The app's own title bar: same surface as the window, so the two read as
+   one piece. Empty parts drag the window. */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+  height: 40px;
+  padding: 0 0 0 8px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Room for macOS's traffic lights at the left. */
+.topbar-mac {
+  padding-left: 78px;
+}
+
+.topbar-fill {
+  flex: 1;
+  align-self: stretch;
+  min-width: 8px;
+}
+
+.window-controls {
+  display: flex;
+  align-self: stretch;
+  flex: none;
+}
+
+.window-control {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: default;
+}
+
+.window-control:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+/* Inside the button: these sit against the window's top and right edges. */
+.window-control:focus-visible {
+  outline-offset: -3px;
+}
+
+.window-close:hover {
+  background: #c42b1c;
+  color: #fff;
+}
+
+/* The helm and the wordmark; a click opens About. */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  min-height: 32px;
+  padding: 4px 6px 4px 4px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  font-weight: 700;
+  font-size: var(--fs-lg);
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+
+.brand:hover {
+  background: var(--bg-hover);
+}
+
+.brand-mark {
+  width: 24px;
+  height: 24px;
+}
+
+.topnav {
+  display: flex;
+  align-items: stretch;
+  align-self: stretch;
+  gap: 2px;
+  min-width: 0;
+}
+
+.topnav-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.topnav-item:hover {
+  color: var(--text);
+}
+
+.topnav-item:focus-visible {
+  outline-offset: -4px;
+  border-radius: 8px;
+}
+
+/* The current page is underlined, like a tab sitting on the page below. */
+.topnav-item[aria-current="page"] {
+  color: var(--accent);
+}
+
+.topnav-item[aria-current="page"]::after {
+  content: "";
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+.nav-badge {
+  min-width: 17px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--warn);
+  color: var(--bg-elev);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 17px;
+  text-align: center;
+}
+
+.more {
+  position: relative;
+  display: flex;
+}
+
+.more-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  min-width: 160px;
+  padding: 4px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-elev);
+  box-shadow: var(--shadow-pop);
+  animation: drop-in 0.12s ease-out;
+}
+
+.more-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.more-item:hover,
+.more-item:focus-visible {
+  background: var(--bg-hover);
+}
+
+.more-item[aria-current="page"] {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.topbar-status {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin-right: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--muted-soft);
+  color: var(--text-muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.topbar-status-on {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.topbar-status-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The short wording takes over in a narrow window (see "Compact window"). */
+.topbar-status-short {
+  display: none;
+}
+
+/* The page area: a column, so Home can fill what is left under a banner while
+   other pages keep their own height and scroll. A control that Tab scrolls
+   into view stops short of the edge, so its focus ring shows whole. */
+.main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 14px 16px 16px;
+  scroll-padding-block: 8px;
+}
+
+.main > * {
+  flex: none;
+}
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ---- Status bits ------------------------------------------------------- */
+
+.dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border-strong);
+  flex: none;
+}
+
+.dot-ok {
+  background: var(--ok);
+  box-shadow: 0 0 0 3px var(--ok-soft);
+}
+
+/* Hollow when off, so on and off differ in shape as well as colour. */
+.dot-off {
+  border: 1.5px solid var(--text-muted);
+  background: transparent;
+}
+
+.dot-danger {
+  background: var(--danger);
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+
+.pill-ok {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.pill-warn {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.pill-danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.pill-muted {
+  background: var(--muted-soft);
+  color: var(--text-muted);
+}
+
+.pill-accent {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.chips .tag {
+  margin: 0;
+}
+
+.tag-warn {
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
+.tag-accent {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.type-badge {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 4px;
+  font-size: 11.5px;
+  font-weight: 600;
+  background: var(--muted-soft);
+}
+
+.type-direct {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.type-socks5,
+.type-http {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.type-xray {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.type-block {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.notes {
+  margin: 10px 0 0;
+  padding-left: 18px;
+  color: var(--text-muted);
+}
+
+.notes li + li {
+  margin-top: 4px;
+}
+
+/* ---- Cards, tiles ------------------------------------------------------ */
+
+.card {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  min-width: 0;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.card-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.card-body {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.title-with-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 6px 16px;
+  margin: 0;
+}
+
+.facts dt {
+  color: var(--text-muted);
+}
+
+.facts dd {
+  margin: 0;
+  min-width: 0;
+}
+
+/* A file path: one line per piece, broken anywhere rather than overflowing. */
+.facts-path {
+  display: block;
+  font-family: var(--mono);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+/* A note inside a page. Warnings and errors read in the normal text colour
+   with a coloured edge: their words say what is wrong, not the colour. */
+.inline-alert {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--muted-soft);
+  color: var(--text-muted);
+  white-space: pre-wrap;
+}
+
+.inline-alert-warn {
+  border-color: rgb(251 191 36 / 30%);
+  border-left-color: var(--warn);
+  background: var(--warn-soft);
+  color: var(--text);
+}
+
+.inline-alert-danger {
+  border-color: rgb(248 113 113 / 30%);
+  border-left-color: var(--danger);
+  background: var(--danger-soft);
+  color: var(--text);
+}
+
+/* Notices across the top of a page: an icon, a bold line, the details. */
+.banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px 10px 12px;
+  margin-bottom: 12px;
+  border-radius: var(--radius);
+  border: 1px solid rgb(248 113 113 / 35%);
+  border-left: 3px solid var(--danger);
+  background: var(--danger-soft);
+  color: var(--text);
+}
+
+.banner > svg {
+  color: var(--danger);
+  flex: none;
+  margin-top: 2px;
+}
+
+.banner-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.banner-warn {
+  border-color: rgb(251 191 36 / 35%);
+  border-left-color: var(--warn);
+  background: var(--warn-soft);
+}
+
+.banner-warn > svg {
+  color: var(--warn);
+}
+
+.banner-hint {
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}
+
+.banner-info {
+  align-items: center;
+  padding: 7px 12px 7px 10px;
+  border-color: var(--border);
+  border-left-color: var(--accent);
+  background: var(--bg-elev);
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}
+
+.banner-info > svg {
+  color: var(--accent);
+  margin-top: 0;
+}
+
+.small {
+  font-size: 12px;
+}
+
+/* ---- Home: the big button ------------------------------------------------ */
+
+/* Fills what the window has left under any banner: the device list scrolls
+   inside its panel, not the page. A window too short for both scrolls. */
+.main > .home {
+  flex: 1 1 0;
+}
+
+.home {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 260px;
+}
+
+.hero {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 0 0;
+  text-align: center;
+}
+
+/* The links and the Wi-Fi/USB switch under the status. */
+.hero-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+/* While sharing (and in any short window): the button on the left, what to
+   join and the switch on the right, so the device list below keeps its room. */
+.hero-on {
+  flex-direction: row;
+  justify-content: center;
+  gap: 20px;
+  padding: 0 6px;
+  text-align: left;
+}
+
+.hero-on .power {
+  width: 112px;
+  height: 112px;
+}
+
+.hero-on .hero-text {
+  align-items: flex-start;
+  max-width: none;
+}
+
+.hero-on .hero-actions {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin-top: 4px;
+}
+
+/* The helm: a still glow behind it (shown by opacity alone), the drawing, and
+   the hub in the middle with the icon and word. */
+.power {
+  position: relative;
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 128px;
+  height: 128px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.power:disabled {
+  cursor: default;
+}
+
+.power:focus-visible {
+  outline-offset: 4px;
+}
+
+.power-glow {
+  position: absolute;
+  inset: -22%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(42 243 240 / 30%), rgb(31 176 242 / 13%) 55%, rgb(28 95 230 / 0%));
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+}
+
+.power-helm {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  opacity: 0.72;
+  transition: opacity 0.2s ease;
+  /* The wheel's turn always exists but waits, so it keeps its angle between
+     states instead of snapping back. 18 s is one turn at the connecting
+     speed; PowerButton raises the rate once sharing is on. */
+  animation: helm-turn 18s linear infinite paused;
+}
+
+.helm-rim,
+.helm-spokes {
+  fill: none;
+  stroke: url(#power-ink);
+  stroke-linecap: round;
+}
+
+.helm-rim {
+  stroke-width: 6.5;
+}
+
+.helm-spokes {
+  stroke-width: 5;
+}
+
+/* Handles wait hollow; they light up while devices can join. */
+.helm-handle {
+  fill: var(--bg);
+  stroke: url(#power-ink);
+  stroke-width: 3.5;
+}
+
+.power-on .helm-handle {
+  fill: url(#power-core);
+  stroke: none;
+}
+
+.power:hover:not(:disabled) .power-helm,
+.power-on .power-helm,
+.power-busy .power-helm {
+  opacity: 1;
+}
+
+.power:hover:not(:disabled) .power-glow,
+.power-busy .power-glow {
+  opacity: 0.55;
+}
+
+.power-on .power-glow {
+  opacity: 1;
+}
+
+/* Connecting (or stopping): the wheel turns very slowly. Sharing: it keeps
+   turning, faster (PowerButton sets the speed without moving the wheel).
+   Only transform changes, so the compositor turns the wheel without
+   repainting it; the rules under "Motion" stop it while the window is hidden
+   and for reduced motion. */
+.power-busy .power-helm,
+.power-on .power-helm {
+  animation-play-state: running;
+  will-change: transform;
+}
+
+@keyframes helm-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.power-on {
+  color: var(--text);
+}
+
+.power-error {
+  color: var(--danger);
+}
+
+.power-error .helm-rim,
+.power-error .helm-spokes,
+.power-error .helm-handle {
+  stroke: var(--danger);
+}
+
+.power-unavailable {
+  opacity: 0.45;
+}
+
+/* The hub: the icon and word straight inside the rim. Positioned, so it is
+   drawn over the helm. */
+.power-core {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  transition: transform 0.1s ease-out;
+}
+
+.power:active:not(:disabled) .power-core {
+  transform: scale(0.95);
+}
+
+.power-label {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.hero-text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 460px;
+}
+
+.hero-status {
+  font-size: var(--fs-xl);
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.hero-detail {
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  overflow-wrap: anywhere;
+}
+
+.hero-detail select {
+  min-width: 220px;
+}
+
+.hero-note {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 5px;
+}
+
+.hero-note svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--accent);
+}
+
+.hero-problem {
+  color: var(--danger);
+}
+
+.hero-links {
+  display: flex;
+  gap: 14px;
+  font-size: var(--fs-sm);
+}
+
+.hero-links .link-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* What to join: the network's name and password, each with a copy button. */
+.join {
+  display: flex;
+  flex-direction: column;
+  min-width: min(280px, 100%);
+  margin-top: 4px;
+  padding: 2px 4px 2px 12px;
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
+  border: 1px solid var(--border);
+  text-align: left;
+}
+
+/* Which way the big button shares: a small two-way switch. */
+.mode-switch {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--bg-sunken);
+  border: 1px solid var(--border);
+}
+
+.mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+
+.mode:hover {
+  color: var(--text);
+}
+
+.mode[aria-checked="true"] {
+  background: var(--bg-hover);
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+}
+
+.mode[aria-checked="true"] svg {
+  color: var(--accent);
+}
+
+/* The way that is sharing right now. */
+.mode-on {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ok);
+  box-shadow: 0 0 0 2px var(--ok-soft);
+}
+
+.copy-value {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.copy-label {
+  flex: none;
+  width: 64px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.copy-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.panel-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.panel-note svg {
+  flex: none;
+  margin-top: 1px;
+  color: var(--accent);
+}
+
+.modal-body .panel-note {
+  margin-top: 10px;
+}
+
+.caution-text {
+  margin: 0;
+  white-space: pre-line;
+}
+
+.link-button:disabled {
+  color: var(--text-muted);
+  cursor: default;
+  text-decoration: none;
+}
+
+/* A titled block on a page, such as Home's device list. */
+.section-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.section-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  font-size: 12px;
+}
+
+/* ---- Devices ------------------------------------------------------------ */
+
+.device-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.device {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  min-width: 0;
+}
+
+.device + .device {
+  border-top: 1px solid var(--border);
+}
+
+.device-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--muted-soft);
+  color: var(--text-muted);
+}
+
+.device-icon-on {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.device-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.device-body .cell-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* The padding (taken back by the margin) leaves room for the address chip's
+   larger click area inside this clipped line. */
+.device-body .cell-sub {
+  padding-block: 8px;
+  margin-block: -8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.device-offline .cell-main {
+  color: var(--text-muted);
+}
+
+.device-rate {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex: none;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.device .row-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.facts-compact {
+  gap: 4px 14px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  border-radius: 8px;
+  background: var(--bg-sunken);
+}
+
+/* ---- Empty states, sub-tabs --------------------------------------------- */
+
+/* Blank pages echo the logo: a still helm, drawn once as an image. */
+:root {
+  --helm-small: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='i' gradientUnits='userSpaceOnUse' x1='20' y1='4' x2='44' y2='60'%3E%3Cstop offset='0' stop-color='%232af3f0'/%3E%3Cstop offset='.5' stop-color='%231fb0f2'/%3E%3Cstop offset='1' stop-color='%231c5fe6'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cg fill='none' stroke='url(%23i)' stroke-linecap='round'%3E%3Ccircle cx='32' cy='32' r='17' stroke-width='2.6'/%3E%3Ccircle cx='32' cy='32' r='5.5' stroke-width='2'/%3E%3Cpath stroke-width='2' d='M32 25.5V10M37.63 28.75L51.05 21M37.63 35.25L51.05 43M32 38.5V54M26.37 35.25L12.95 43M26.37 28.75L12.95 21'/%3E%3C/g%3E%3Cg fill='url(%23i)'%3E%3Ccircle cx='32' cy='6.5' r='3.3'/%3E%3Ccircle cx='54.08' cy='19.25' r='3.3'/%3E%3Ccircle cx='54.08' cy='44.75' r='3.3'/%3E%3Ccircle cx='32' cy='57.5' r='3.3'/%3E%3Ccircle cx='9.92' cy='44.75' r='3.3'/%3E%3Ccircle cx='9.92' cy='19.25' r='3.3'/%3E%3C/g%3E%3C/svg%3E");
+  --helm-ring: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 84 84'%3E%3Cdefs%3E%3ClinearGradient id='i' gradientUnits='userSpaceOnUse' x1='27' y1='4' x2='57' y2='80'%3E%3Cstop offset='0' stop-color='%232af3f0'/%3E%3Cstop offset='.5' stop-color='%231fb0f2'/%3E%3Cstop offset='1' stop-color='%231c5fe6'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cg fill='none' stroke='url(%23i)' stroke-linecap='round'%3E%3Ccircle cx='42' cy='42' r='31' stroke-width='1.6'/%3E%3Cpath stroke-width='1.6' d='M42 16.5V7M64.08 29.25L72.31 24.5M64.08 54.75L72.31 59.5M42 67.5V77M19.92 54.75L11.69 59.5M19.92 29.25L11.69 24.5'/%3E%3C/g%3E%3Cg fill='url(%23i)'%3E%3Ccircle cx='42' cy='4' r='2.7'/%3E%3Ccircle cx='74.91' cy='23' r='2.7'/%3E%3Ccircle cx='74.91' cy='61' r='2.7'/%3E%3Ccircle cx='42' cy='80' r='2.7'/%3E%3Ccircle cx='9.09' cy='61' r='2.7'/%3E%3Ccircle cx='9.09' cy='23' r='2.7'/%3E%3C/g%3E%3C/svg%3E");
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 40px 20px 36px;
+  text-align: center;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+}
+
+.empty-state .muted {
+  max-width: 340px;
+}
+
+.empty-state > .button {
+  margin-top: 6px;
+}
+
+/* The page's icon as the helm's hub, the rim and handles round it. */
+.empty-icon {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  margin: 18px 0 14px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.empty-icon::before {
+  content: "";
+  position: absolute;
+  inset: -18px;
+  background: var(--helm-ring) center / contain no-repeat;
+  opacity: 0.55;
+}
+
+.subtabs {
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--border);
+  scrollbar-width: none;
+}
+
+.subtab {
+  flex: none;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--text-muted);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.subtab:hover {
+  color: var(--text);
+}
+
+.subtab:focus-visible {
+  outline-offset: -2px;
+  border-radius: 6px 6px 0 0;
+}
+
+.subtab[aria-selected="true"] {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* "Loading…", "No device matches.": a quiet helm over the words. */
+.empty {
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--text-muted);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+}
+
+.empty::before {
+  content: "";
+  display: block;
+  width: 36px;
+  height: 36px;
+  margin: 0 auto 10px;
+  background: var(--helm-small) center / contain no-repeat;
+  opacity: 0.45;
+}
+
+/* Something is loading: turns only while it shows (see "Motion"). */
+.spin {
+  animation: spin 1s linear infinite;
+  will-change: transform;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---- Buttons ----------------------------------------------------------- */
+
+/* Every button is at least 32 px tall: easy to hit. */
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-elev);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.button:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: #33578f;
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.button-primary {
+  background: var(--accent-gradient);
+  border-color: transparent;
+  color: var(--accent-contrast);
+  font-weight: 600;
+}
+
+.button-primary:hover:not(:disabled) {
+  background: var(--accent-gradient-hover);
+  border-color: transparent;
+}
+
+.button-danger {
+  background: var(--danger-strong);
+  border-color: var(--danger-strong);
+  color: #fff;
+  font-weight: 600;
+}
+
+.button-danger:hover:not(:disabled) {
+  background: #bf3232;
+  border-color: #bf3232;
+}
+
+.icon-button {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.icon-button:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.icon-button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* ---- Forms ------------------------------------------------------------- */
+
+input:not([type="checkbox"], [type="radio"]),
+select,
+textarea {
+  width: 100%;
+  min-height: 32px;
+  padding: 5px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
+}
+
+input:not([type="checkbox"], [type="radio"]):hover:not(:disabled),
+select:hover:not(:disabled),
+textarea:hover:not(:disabled) {
+  border-color: #33578f;
+}
+
+input:not([type="checkbox"], [type="radio"]):focus,
+select:focus,
+textarea:focus {
+  border-color: var(--accent);
+}
+
+textarea {
+  resize: vertical;
+  font-family: var(--mono);
+  font-size: var(--fs-sm);
+}
+
+input:disabled,
+select:disabled,
+textarea:disabled {
+  opacity: 0.6;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--accent);
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 16px;
+}
+
+.form-grid-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.field-wide {
+  grid-column: 1 / -1;
+}
+
+.field-label {
+  font-weight: 600;
+  font-size: var(--fs-sm);
+  padding: 0;
+}
+
+.field-hint {
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}
+
+.field-error {
+  color: var(--danger);
+  font-size: var(--fs-sm);
+}
+
+.field-warn {
+  color: var(--warn);
+  font-size: var(--fs-sm);
+}
+
+.input-with-button {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.check,
+.check-row label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  cursor: pointer;
+}
+
+.check-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
+.toggle-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.toggle {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+}
+
+/* A one-line switch is short: padding with a matching negative margin makes
+   its click area 32 px tall without moving anything. */
+.toggle:not(.toggle-compact) {
+  padding: 7px 0;
+  margin: -7px 0;
+}
+
+.toggle input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* The switch: the on colour is a layer that fades in, the knob slides; only
+   opacity and transform move. */
+.toggle-track {
+  flex: none;
+  position: relative;
+  width: 32px;
+  height: 18px;
+  margin-top: 1px;
+  border-radius: 9px;
+  background: var(--border-strong);
+}
+
+.toggle-track::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--accent-gradient);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.toggle-track::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.15s;
+}
+
+.toggle input:checked + .toggle-track::before {
+  opacity: 1;
+}
+
+.toggle input:checked + .toggle-track::after {
+  transform: translateX(14px);
+}
+
+.toggle input:focus-visible + .toggle-track {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.toggle-disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.toggle-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.toggle-label {
+  font-weight: 500;
+}
+
+.toggle-description {
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}
+
+/* ---- Toolbars, tables -------------------------------------------------- */
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.segmented button {
+  min-height: 32px;
+  padding: 0 14px;
+  border: 0;
+  background: var(--bg-elev);
+  cursor: pointer;
+}
+
+.segmented button:hover:not([aria-pressed="true"]) {
+  background: var(--bg-hover);
+}
+
+/* Inside the rounded frame, which would clip a ring drawn outside. */
+.segmented button:focus-visible {
+  outline-offset: -3px;
+  border-radius: 6px;
+}
+
+.segmented button + button {
+  border-left: 1px solid var(--border-strong);
+}
+
+.segmented button[aria-pressed="true"] {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.search {
+  display: inline-flex;
+  flex: 0 1 280px;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 0 4px 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
+  color: var(--text-muted);
+}
+
+.search input {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  min-width: 0;
+  padding-left: 0;
+}
+
+/* The ring goes round the whole box, icon included. */
+.search input:focus-visible {
+  outline: none;
+}
+
+.search:focus-within {
+  border-color: var(--accent);
+}
+
+.search:has(input:focus-visible) {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.table-wrap {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  overflow: auto;
+}
+
+.card .table-wrap {
+  box-shadow: none;
+}
+
+.table-scroll {
+  max-height: 420px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th,
+.table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.table th {
+  position: sticky;
+  top: 0;
+  background: var(--bg-elev);
+  color: var(--text-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.table tbody tr:hover {
+  background: var(--bg-hover);
+}
+
+.table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.table-compact th,
+.table-compact td {
+  padding: 4px 8px;
+}
+
+.table .num {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.row-muted {
+  color: var(--text-muted);
+}
+
+.cell-main {
+  font-weight: 500;
+}
+
+.cell-sub {
+  color: var(--text-muted);
+  font-size: 11.5px;
+}
+
+.cell-truncate {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row-actions {
+  white-space: nowrap;
+  text-align: right;
+}
+
+.test-error {
+  color: var(--danger);
+  font-size: 12px;
+}
+
+/* ---- Rules ------------------------------------------------------------- */
+
+.rule-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rule {
+  display: grid;
+  grid-template-columns: 18px auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 6px 6px 12px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.rule:hover {
+  border-color: var(--border-strong);
+}
+
+/* A rule that is off sits back on a sunken, dashed card with its name
+   greyed; its switch says so too. No fading, so its words stay readable. */
+.rule-off {
+  background: var(--bg-sunken);
+  border-style: dashed;
+}
+
+.rule-off .rule-name {
+  color: var(--text-muted);
+}
+
+.rule-index {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* The whole middle of a row opens the editor. */
+.rule-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rule-body:hover .rule-name {
+  color: var(--accent);
+}
+
+.rule-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.rule-title .pill {
+  text-transform: none;
+}
+
+.rule-name {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rule-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+}
+
+.rule-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 1px 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--muted-soft);
+  color: var(--text-muted);
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rule-chip svg {
+  flex: none;
+}
+
+/* How often the rule decided, at the end of its chips. */
+.rule-hits {
+  margin-left: auto;
+  padding: 1px 0 1px 8px;
+  color: var(--text-muted);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* The editor: one grid, every label in the same column so it all lines up. */
+.rule-rows {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  align-items: start;
+  gap: 10px 12px;
+}
+
+.rule-label {
+  padding-top: 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.rule-label-when {
+  padding-top: 1px;
+}
+
+/* "Applies to": a thin line across the grid with a plain note. */
+.rule-divider {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 11.5px;
+}
+
+.rule-divider span {
+  flex: none;
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.rule-route select {
+  width: auto;
+  min-width: 180px;
+}
+
+.rule-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.rule-inline {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.rule-inline > input {
+  flex: 1;
+  min-width: 0;
+}
+
+.rule-inline .toggle {
+  flex: none;
+}
+
+.rule-protocol {
+  flex: none;
+  width: auto;
+}
+
+.rule-times {
+  gap: 8px;
+}
+
+.rule-times > input {
+  flex: none;
+  width: 110px;
+}
+
+.rule-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+}
+
+/* What to do: the four choices as one row of pills. */
+.choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.choice,
+.chip-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--bg-sunken);
+  color: var(--text-muted);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.choice {
+  min-height: 32px;
+  padding: 0 14px;
+  font-size: var(--fs-md);
+}
+
+.choice input,
+.chip-toggle input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.choice:hover,
+.chip-toggle:hover,
+.choice:has(input:checked) {
+  color: var(--text);
+}
+
+.choice:has(input:focus-visible),
+.chip-toggle:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.choice-allow:has(input:checked) {
+  border-color: var(--ok);
+  background: var(--ok-soft);
+}
+
+.choice-deny:has(input:checked),
+.choice-reject:has(input:checked) {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.choice-route:has(input:checked),
+.chip-toggle:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+.choice-allow:has(input:checked) svg {
+  color: var(--ok);
+}
+
+.choice-deny:has(input:checked) svg,
+.choice-reject:has(input:checked) svg {
+  color: var(--danger);
+}
+
+.choice-route:has(input:checked) svg {
+  color: var(--accent);
+}
+
+/* Devices: chosen ones as chips that can be removed, then ways to add more. */
+.picker-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.picker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+}
+
+.picker-any {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* A chosen device; its remove button fills the chip's round end. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 240px;
+  min-height: 34px;
+  padding: 0 0 0 12px;
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--accent-soft);
+  font-size: var(--fs-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chip-remove {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.chip-remove:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+/* The chip clips what is outside it, so this ring goes inside the button. */
+.chip-remove:focus-visible {
+  outline-offset: -2px;
+}
+
+.picker-add {
+  width: auto;
+  max-width: 220px;
+}
+
+.picker-type {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  gap: 2px;
+  min-width: 180px;
+}
+
+.picker-type input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Online lists: what they hold, and the button that downloads them. */
+.toolbar-actions {
+  display: flex;
+  flex: none;
+  gap: 8px;
+}
+
+.lists-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elev);
+}
+
+.lists-bar-text {
+  display: flex;
+  flex: 1 1 260px;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: 12.5px;
+}
+
+.lists-bar-text svg {
+  flex: none;
+  color: var(--accent);
+}
+
+.lists-bar-text strong {
+  color: var(--text);
+}
+
+.lists-bar-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.lists-bar-actions select {
+  width: auto;
+  max-width: 180px;
+}
+
+/* "Which rule applies?": a one-line form, the answer under it. */
+.rule-test {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elev);
+}
+
+.rule-test-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.rule-test-label {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.rule-test-label svg {
+  color: var(--accent);
+}
+
+.rule-test-form .rule-test-target {
+  flex: 1 1 200px;
+  width: auto;
+  min-width: 0;
+}
+
+.rule-test-form select {
+  width: auto;
+  max-width: 180px;
+}
+
+.rule-test-form .rule-test-port {
+  flex: none;
+  width: 64px;
+}
+
+.rule-test-result {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12.5px;
+}
+
+.rule-test-result strong {
+  font-weight: 600;
+}
+
+.link-statuses {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.link-statuses li {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.link-host {
+  font-family: var(--mono);
+}
+
+/* Ready-made rules: cards by kind. */
+.templates {
+  display: grid;
+  gap: 18px;
+}
+
+.templates-group h3 {
+  margin: 0 0 2px;
+  font-size: 13px;
+}
+
+.templates-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.template {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elev);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.template:hover {
+  border-color: var(--accent);
+}
+
+.template-name {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.template-about {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+/* On/off chips for groups and days. */
+.chip-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+}
+
+.chip-toggle {
+  min-height: 32px;
+  padding: 0 12px;
+  font-size: var(--fs-sm);
+}
+
+.override-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.override-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 32px;
+  gap: 6px;
+  align-items: center;
+}
+
+/* ---- Modal & toasts ---------------------------------------------------- */
+
+.modal {
+  width: min(560px, calc(100vw - 48px));
+  max-height: calc(100vh - 32px);
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elev);
+  color: var(--text);
+  box-shadow: var(--shadow-pop);
+}
+
+.modal-wide {
+  width: min(760px, calc(100vw - 48px));
+}
+
+.modal::backdrop {
+  background: rgb(4 11 30 / 62%);
+  animation: fade-in 0.15s ease-out;
+}
+
+/* Opens with a short rise, once. */
+.modal[open] {
+  display: flex;
+  flex-direction: column;
+  animation: rise-in 0.16s ease-out;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Only the body scrolls: min-height lets it shrink inside the dialog, and
+   position keeps hidden (absolute) labels inside it rather than overflowing
+   the dialog. */
+.modal-body {
+  position: relative;
+  min-height: 0;
+  padding: 14px 16px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
+}
+
+/* A short window (the default size): tighter dialogs, so forms fit unscrolled. */
+@media (max-height: 560px) {
+  .modal {
+    max-height: calc(100vh - 16px);
+  }
+
+  .modal-header,
+  .modal-footer {
+    padding-top: 7px;
+    padding-bottom: 7px;
+  }
+
+  .modal-body {
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+
+  .rule-rows {
+    row-gap: 8px;
+  }
+}
+
+.confirm-text p {
+  margin: 0 0 8px;
+}
+
+.toasts {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 10;
+  max-width: min(440px, calc(100vw - 32px));
+}
+
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 6px 8px 12px;
+  border: 1px solid var(--border-strong);
+  border-left-width: 4px;
+  border-radius: var(--radius);
+  background: var(--bg-elev);
+  box-shadow: var(--shadow-pop);
+  animation: rise-in 0.18s ease-out;
+}
+
+.toast > svg {
+  flex: none;
+  margin-top: 8px;
+}
+
+.toast-success {
+  border-left-color: var(--ok);
+}
+
+.toast-success > svg {
+  color: var(--ok);
+}
+
+.toast-error {
+  border-left-color: var(--danger);
+}
+
+.toast-error > svg {
+  color: var(--danger);
+}
+
+.toast-body {
+  flex: 1;
+  min-width: 0;
+  padding-top: 6px;
+}
+
+.toast-message {
+  margin: 4px 0 0;
+  font: var(--fs-sm) / 1.45 var(--mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--text-muted);
+  max-height: 240px;
+  overflow: auto;
+}
+
+/* ---- Outbounds and network adapters ------------------------------------ */
+
+.outbound-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.outbound {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px 6px 10px;
+  min-width: 0;
+}
+
+.outbound + .outbound {
+  border-top: 1px solid var(--border);
+}
+
+.outbound-off .outbound-icon,
+.outbound-off .cell-main {
+  color: var(--text-muted);
+}
+
+.outbound-icon {
+  flex: none;
+  color: var(--accent);
+}
+
+.outbound-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.outbound-body .cell-sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.outbound .row-actions {
+  flex: none;
+}
+
+/* A switch alone in a row: the whole 32 px square around it takes the click. */
+.toggle-compact {
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  min-width: 36px;
+  min-height: 32px;
+}
+
+.toggle-compact .toggle-track {
+  margin-top: 0;
+}
+
+.adapter-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 220px;
+  overflow: auto;
+}
+
+.adapter {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.adapter:hover {
+  background: var(--bg-hover);
+}
+
+.adapter-selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.adapter > input {
+  margin: 2px 0 0;
+  flex: none;
+}
+
+.adapter > svg {
+  flex: none;
+  margin-top: 1px;
+  color: var(--accent);
+}
+
+.adapter-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.adapter-facts {
+  overflow-wrap: anywhere;
+}
+
+/* A button that reads like a link. Padding with a matching negative margin
+   makes it easier to hit without moving anything around it. */
+.link-button {
+  align-self: flex-start;
+  padding: 8px 4px;
+  margin: -8px -4px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.link-button:hover {
+  text-decoration: underline;
+}
+
+.link-button:focus-visible {
+  outline-offset: -2px;
+}
+
+.advanced summary {
+  padding: 6px 0;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+
+.advanced summary:hover {
+  color: var(--text);
+}
+
+/* ---- USB to phone ------------------------------------------------------ */
+
+.steps {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.steps li + li {
+  margin-top: 2px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ---- Compact window ---------------------------------------------------- */
+
+/* The window opens small: spacing tightens. Enlarging it loosens up again. */
+@media (max-width: 860px) {
+  .main {
+    padding: 12px 12px 14px;
+  }
+
+  .page {
+    gap: 10px;
+  }
+
+  h1 {
+    font-size: var(--fs-xl);
+  }
+
+  .card-header {
+    min-height: 48px;
+    padding: 6px 12px;
+  }
+
+  .card-body {
+    padding: 10px 12px;
+    gap: 10px;
+  }
+
+  .banner {
+    padding: 8px 10px;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
+  .toolbar {
+    flex-wrap: wrap;
+  }
+
+  /* On its own line under the filters, the search box takes the width. */
+  .toolbar .search {
+    flex: 1 1 220px;
+  }
+
+  .form-grid-3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .toggle-list {
+    gap: 8px;
+  }
+
+  .subtabs {
+    margin-bottom: 0;
+  }
+}
+
+/* The default window: the title bar keeps the logo and the status dot, filled
+   while sharing and hollow when not (its tooltip says the rest), so the page
+   names fit beside the window buttons. */
+@media (max-width: 760px) {
+  .brand-text {
+    display: none;
+  }
+
+  /* Out of sight, still read out by screen readers. */
+  .topbar-status-long {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .topbar-status {
+    padding: 4px 6px;
+  }
+}
+
+/* Narrow: the top bar keeps icons only, which leaves room to say "Sharing" or
+   "Off" again; the cards stack. The page names stay for screen readers (and
+   show on hover, see App.tsx). */
+@media (max-width: 600px) {
+  .topnav-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .topbar {
+    gap: 4px;
+  }
+
+  .topnav-item {
+    padding: 0 9px;
+  }
+
+  .topbar-status-short {
+    display: inline;
+  }
+
+  .topbar-status {
+    padding: 3px 10px 3px 8px;
+  }
+
+  /* Sections wrap onto a second line rather than hide off the edge. */
+  .subtabs {
+    flex-wrap: wrap;
+  }
+}
+
+/* A short window, the size it opens at included: the big button sits beside
+   its words in every state, so the device list keeps most of the height. */
+@media (max-height: 620px) {
+  .hero {
+    flex-direction: row;
+    justify-content: center;
+    gap: 18px;
+    padding: 0 6px;
+    text-align: left;
+  }
+
+  .hero .power {
+    width: 96px;
+    height: 96px;
+  }
+
+  .hero .hero-text {
+    align-items: flex-start;
+    max-width: none;
+  }
+
+  .hero .hero-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 16px;
+    margin-top: 4px;
+  }
+
+  .hero-status {
+    font-size: var(--fs-lg);
+  }
+}
+
+/* A small helm: the icon shrinks and a longer word ("Try again") takes two
+   short lines, so it stays inside the rim. */
+@media (max-height: 620px) {
+  .hero .power-core {
+    gap: 2px;
+  }
+
+  .hero .power-core svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  .hero .power-label {
+    max-width: 54px;
+    font-size: 10px;
+    letter-spacing: 0.04em;
+    line-height: 1.15;
+    text-align: center;
+    white-space: normal;
+  }
+}
+
+@media (max-height: 620px) and (max-width: 560px) {
+  .hero {
+    gap: 14px;
+    padding: 0;
+  }
+
+  .hero .power {
+    width: 88px;
+    height: 88px;
+  }
+
+  .hero .power-label {
+    max-width: 48px;
+  }
+}
+
+/* Shorter than the window opens (420 px), down to the smallest it gets: one
+   scrollbar for the whole page rather than a device list too short to use.
+   At the opening size and up, the list scrolls inside its panel. (Written
+   ".home …" to outrank the panel's own rules further down.) */
+@media (max-height: 400px) {
+  .main > .home {
+    flex: none;
+  }
+
+  .main > .home,
+  .home .devices-panel {
+    min-height: 0;
+  }
+
+  .home .devices-panel {
+    flex: none;
+    padding-bottom: 8px;
+  }
+
+  .home .device-rows {
+    overflow: visible;
+  }
+
+  .home .devices-empty {
+    flex: none;
+    padding: 12px 12px 16px;
+  }
+}
+
+@media (max-width: 520px) {
+  .form-grid,
+  .form-grid-3 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* What a pasted proxy or VPN link turned out to be. */
+.link-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: -6px 0 0;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.link-info svg {
+  flex: none;
+  color: var(--ok);
+}
+
+.advanced .form-grid {
+  margin-top: 8px;
+}
+
+/* ---- Home: devices ------------------------------------------------------- */
+
+.devices-panel {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 140px;
+  padding: 10px 12px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elev);
+  box-shadow: var(--shadow);
+}
+
+.devices-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+}
+
+.devices-head h2 {
+  font-size: var(--fs-lg);
+}
+
+.devices-count {
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--muted-soft);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}
+
+.out-via {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin-left: auto;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+}
+
+.out-via select {
+  max-width: 220px;
+  min-width: 0;
+}
+
+/* "All devices": the chevron, as big a target as any button. */
+.devices-head .section-link {
+  display: grid;
+  flex: none;
+  place-items: center;
+  align-self: center;
+  width: 32px;
+  height: 32px;
+  margin: -4px -6px -4px 0;
+  padding: 0;
+}
+
+/* The list measures itself: what each row shows depends on its own width
+   (see the @container rules below), not the window's. A little room at the
+   sides (taken back by the margin) and at the ends when Tab scrolls keeps a
+   picker's focus ring inside what the list shows. */
+.device-rows {
+  container: device-rows / inline-size;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  margin: 0 -4px;
+  padding: 0 4px;
+  overflow-y: auto;
+  scroll-padding-block: 6px;
+  list-style: none;
+}
+
+.device-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 0;
+  border-top: 1px solid var(--border);
+}
+
+.device-row-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.device-row-rate {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Each device's outbound, as wide as it needs and no wider. */
+.device-row select {
+  flex: 0 1 280px;
+  min-width: 150px;
+  min-height: 32px;
+  padding: 4px 8px;
+  font-size: var(--fs-sm);
+}
+
+/* A narrower list drops the address (the Devices page has it)… */
+@container device-rows (max-width: 600px) {
+  .device-row .address-chip {
+    display: none;
+  }
+}
+
+/* …and a narrow one puts the speeds under the name, the picker on the right. */
+@container device-rows (max-width: 440px) {
+  .device-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 54%);
+    column-gap: 10px;
+  }
+
+  .device-row-name {
+    grid-area: 1 / 1;
+  }
+
+  .device-row-rate {
+    grid-area: 2 / 1;
+  }
+
+  .device-row select {
+    grid-area: 1 / 2 / 3 / 3;
+    min-width: 0;
+  }
+}
+
+/* No devices yet: a quiet helm and the words, in the middle of the panel. */
+.devices-empty {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 0;
+  margin: 0;
+  padding: 8px 12px 12px;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  text-align: center;
+}
+
+.devices-empty .link-button {
+  align-self: center;
+}
+
+.devices-empty::before {
+  content: "";
+  flex: none;
+  width: 40px;
+  height: 40px;
+  background: var(--helm-small) center / contain no-repeat;
+  opacity: 0.4;
+}
+
+/* Small to look at; the clickable area still reaches 32 px. */
+.button-small {
+  position: relative;
+  height: 28px;
+  padding: 0 10px;
+  font-size: var(--fs-sm);
+}
+
+.button-small::after {
+  content: "";
+  position: absolute;
+  inset: -3px -1px;
+}
+
+/* Whether outbounds apply right now, in one line. */
+.routing {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px 5px 10px;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  font-size: 12px;
+}
+
+.routing > svg {
+  flex: none;
+}
+
+.routing-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.routing .link-button {
+  flex: none;
+  align-self: center;
+  font-size: 12px;
+}
+
+.routing-off {
+  background: var(--warn-soft);
+  border-color: rgb(251 191 36 / 25%);
+}
+
+.routing-off > svg {
+  color: var(--warn);
+}
+
+.routing-waiting {
+  background: var(--accent-soft);
+}
+
+.routing-waiting > svg {
+  color: var(--accent);
+}
+
+.routing-active {
+  background: var(--ok-soft);
+}
+
+.routing-active > svg {
+  color: var(--ok);
+}
+
+/* A figure in the banner worth a look, such as packets dropped so far. */
+.routing-warn {
+  color: var(--warn);
+}
+
+.routing-failed {
+  background: var(--danger-soft);
+  border-color: rgb(248 113 113 / 25%);
+}
+
+.routing-failed > svg {
+  color: var(--danger);
+}
+
+/* ---- About (opened from the logo) ---------------------------------------- */
+
+.about {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-width: min(380px, 80vw);
+  padding-bottom: 4px;
+  text-align: center;
+}
+
+/* The app icon's tile, painted with gradients like the icon itself: navy from
+   top to bottom, a blue glow in the middle and a faint sheen at the top. */
+.about-tile {
+  display: grid;
+  place-items: center;
+  width: 84px;
+  height: 84px;
+  margin: 4px 0 6px;
+  border-radius: 22.66%;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 13%), rgb(255 255 255 / 0%) 32%),
+    radial-gradient(closest-side, rgb(31 98 196 / 50%), rgb(31 98 196 / 0%)),
+    linear-gradient(180deg, #122c63, #0a1a3f 55%, #040b1e);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 9%), var(--shadow);
+}
+
+.about-logo {
+  width: 66px;
+  height: 66px;
+}
+
+.about-name {
+  font-size: var(--fs-2xl);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  background: var(--accent-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.about-tagline {
+  max-width: 340px;
+  margin: 0 0 4px;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}
+
+.about-versions {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 2px 10px;
+  margin: 0;
+  font-size: var(--fs-sm);
+}
+
+.about-versions dt {
+  color: var(--text-muted);
+  text-align: right;
+}
+
+.about-versions dd {
+  margin: 0;
+  font-family: var(--mono);
+  text-align: left;
+}
+
+.about-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.about-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--bg-sunken);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+
+.about-link:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.update {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  font-size: 12px;
+  text-align: left;
+}
+
+.update > svg {
+  flex: none;
+  margin-top: 1px;
+}
+
+.update-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.update-notes {
+  margin: 4px 0 0;
+  max-height: 72px;
+  overflow: auto;
+  color: var(--text-muted);
+  white-space: pre-line;
+}
+
+.update-new {
+  background: var(--accent-soft);
+}
+
+.update-new > svg {
+  color: var(--accent);
+}
+
+.update-ok {
+  background: var(--ok-soft);
+}
+
+.update-ok > svg {
+  color: var(--ok);
+}
+
+.update-failed {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+/* ---- Local access: addresses and what devices can reach ---------------- */
+
+/* An address on the shared network; a click copies it. */
+.address-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-sunken);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 18px;
+  cursor: pointer;
+}
+
+.address-chip svg {
+  color: var(--text-muted);
+}
+
+.address-chip:hover,
+.address-chip:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* A slim chip with a click area of 32 px. */
+.address-chip::after {
+  content: "";
+  position: absolute;
+  inset: -8px -2px;
+}
+
+.address-chip-small {
+  padding: 0 5px;
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.address-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.device-row .address-chip {
+  color: var(--text-muted);
+}
+
+.this-computer {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.this-computer-reach {
+  min-width: 0;
+}
+
+.card-intro {
+  margin: 0;
+}
+
+/* A row shaped like a switch that only informs (nothing to change here). */
+.toggle-static {
+  cursor: default;
+}
+
+.toggle-static .toggle-icon {
+  flex: none;
+  width: 30px;
+  margin-top: 2px;
+  color: var(--text-muted);
+}
+
+.reach-state {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.reach-state svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+.reach-state-ok svg {
+  color: var(--ok);
+}
+
+.reach-state-warn {
+  color: var(--warn);
+}
+
+.guide {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+}
+
+.guide li::marker {
+  color: var(--text-muted);
+}
+
+.guide .mono {
+  font-size: 12px;
+}
+
+.guide-off {
+  color: var(--text-muted);
+}
+
+.guide-needs {
+  color: var(--warn);
+  font-size: 12px;
+}

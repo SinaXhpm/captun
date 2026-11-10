@@ -1,0 +1,38 @@
+[package]
+name = "captun-engine"
+description = "Userspace routing engine: terminates hotspot flows and relays them through each client's egress"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+captun-core.workspace = true
+captun-outbound.workspace = true
+captun-policy.workspace = true
+captun-sniff.workspace = true
+rand.workspace = true
+# The TCP stack. CUBIC congestion control; room for 32 out-of-order segments
+# while reassembling, for lossy Wi-Fi.
+smoltcp = { version = "0.14", default-features = false, features = [
+    "std",
+    "log",
+    "medium-ip",
+    "proto-ipv4",
+    "proto-ipv6",
+    "socket-tcp",
+    "socket-tcp-cubic",
+    "async",
+    "assembler-max-segment-count-32",
+] }
+tokio.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+# Paused time, for tests of idle timeouts.
+tokio = { workspace = true, features = ["test-util"] }
+# The end-to-end tests' outbound that reaches their servers on loopback.
+async-trait.workspace = true
+
+[lints]
+workspace = true

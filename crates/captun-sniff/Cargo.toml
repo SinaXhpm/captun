@@ -1,0 +1,14 @@
+[package]
+name = "captun-sniff"
+description = "Bounds-checked sniffers for the first bytes of a flow (TLS ClientHello, HTTP request head)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+httparse.workspace = true
+captun-core.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,38 @@
+[package]
+name = "captun-tls"
+description = "HTTPS inspection certificates: this install's own CA with its key kept where only the service can use it, site certificates made on demand, and the files devices install"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+base64.workspace = true
+rcgen.workspace = true
+ring.workspace = true
+rustls.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+time.workspace = true
+tracing.workspace = true
+x509-parser.workspace = true
+zeroize.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+# O_NOFOLLOW and ELOOP, for opening the key file never through a link.
+libc.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+# CNG (NCrypt) for the machine key, and who owns the folder and the key.
+windows-sys = { workspace = true, features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_Security_Authorization",
+    "Win32_Security_Cryptography",
+    "Win32_Storage_FileSystem",
+    "Win32_System_Threading",
+] }
+
+[lints]
+workspace = true

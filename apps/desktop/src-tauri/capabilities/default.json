@@ -1,0 +1,42 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Main window: Tauri core defaults, the app-drawn title bar (drag, minimize, maximize, close) and the Captun service commands, nothing else.",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging",
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-close",
+    "core:window:allow-is-maximized",
+    "allow-connection-status",
+    "allow-start-service",
+    "allow-get-status",
+    "allow-start-hotspot",
+    "allow-stop-hotspot",
+    "allow-hotspot-support",
+    "allow-describe-link",
+    "allow-app-info",
+    "allow-open-link",
+    "allow-check-update",
+    "allow-start-access-network",
+    "allow-stop-access-network",
+    "allow-stop-service",
+    "allow-list-clients",
+    "allow-set-client-profile",
+    "allow-forget-client",
+    "allow-get-config",
+    "allow-set-config",
+    "allow-list-interfaces",
+    "allow-test-egress",
+    "allow-list-adb-devices",
+    "allow-set-reverse-tether",
+    "allow-get-lists",
+    "allow-update-lists",
+    "allow-get-rule-hits",
+    "allow-test-rules"
+  ]
+}

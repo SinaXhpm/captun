@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-stop-access-network"
+description = "Enables the stop_access_network command without any pre-configured scope."
+commands.allow = ["stop_access_network"]
+
+[[permission]]
+identifier = "deny-stop-access-network"
+description = "Denies the stop_access_network command without any pre-configured scope."
+commands.deny = ["stop_access_network"]

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-set-client-profile"
+description = "Enables the set_client_profile command without any pre-configured scope."
+commands.allow = ["set_client_profile"]
+
+[[permission]]
+identifier = "deny-set-client-profile"
+description = "Denies the set_client_profile command without any pre-configured scope."
+commands.deny = ["set_client_profile"]

@@ -1,0 +1,31 @@
+{
+  "version": "v26.10.21",
+  "source": "https://github.com/XTLS/Xray-core",
+  "license": "MPL-2.0",
+  "assets": {
+    "x86_64-pc-windows-msvc": {
+      "file": "Xray-windows-64.zip",
+      "sha256": "fc58c39ee2f2717b4c54d28d374362389e5319b20ae44aea76ea45a5243ec827"
+    },
+    "aarch64-pc-windows-msvc": {
+      "file": "Xray-windows-arm64-v8a.zip",
+      "sha256": "bb44af3380c9975f951ce7645c04d56ab600040e68f23974a2806e08e0a3f872"
+    },
+    "x86_64-unknown-linux-gnu": {
+      "file": "Xray-linux-64.zip",
+      "sha256": "0eec3ed4163c273d8c8bf821f7d219e257921cf584aa3fb970715e458e631978"
+    },
+    "aarch64-unknown-linux-gnu": {
+      "file": "Xray-linux-arm64-v8a.zip",
+      "sha256": "d1304946c486d98e6b886e9b931eaaaebb23835b30e217638037b7f2721d4e9c"
+    },
+    "x86_64-apple-darwin": {
+      "file": "Xray-macos-64.zip",
+      "sha256": "8e5169b429e76ce5f550c8294db465bc259f30c158ba900aa40802b76ad2f66e"
+    },
+    "aarch64-apple-darwin": {
+      "file": "Xray-macos-arm64-v8a.zip",
+      "sha256": "926cc55fda2a8757dabe4f22dc98772f218ace025f101bd0b68aee232e59d5dc"
+    }
+  }
+}

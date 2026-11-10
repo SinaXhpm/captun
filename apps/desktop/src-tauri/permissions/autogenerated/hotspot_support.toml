@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-hotspot-support"
+description = "Enables the hotspot_support command without any pre-configured scope."
+commands.allow = ["hotspot_support"]
+
+[[permission]]
+identifier = "deny-hotspot-support"
+description = "Denies the hotspot_support command without any pre-configured scope."
+commands.deny = ["hotspot_support"]

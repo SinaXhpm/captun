@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32"><defs>
+  <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#122c63"/><stop offset="0.55" stop-color="#0a1a3f"/><stop offset="1" stop-color="#040b1e"/>
+  </linearGradient>
+  <radialGradient id="bgGlow" cx="0.5" cy="0.5" r="0.58">
+    <stop offset="0" stop-color="#1f62c4" stop-opacity="0.5"/><stop offset="1" stop-color="#1f62c4" stop-opacity="0"/>
+  </radialGradient>
+  <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#ffffff" stop-opacity="0.13"/><stop offset="0.32" stop-color="#ffffff" stop-opacity="0"/>
+  </linearGradient>
+  <linearGradient id="ink" gradientUnits="userSpaceOnUse" x1="10.313" y1="3.438" x2="21.688" y2="28.563">
+    <stop offset="0" stop-color="#2af3f0"/><stop offset="0.5" stop-color="#1fb0f2"/><stop offset="1" stop-color="#1c5fe6"/>
+  </linearGradient>
+  <linearGradient id="inkSmall" gradientUnits="userSpaceOnUse" x1="10.313" y1="3.438" x2="21.688" y2="28.563">
+    <stop offset="0" stop-color="#3cf4f2"/><stop offset="0.5" stop-color="#25b6f5"/><stop offset="1" stop-color="#2470f2"/>
+  </linearGradient>
+  <linearGradient id="trail" x1="0" y1="0" x2="1" y2="0">
+    <stop offset="0" stop-color="#7ff3ff" stop-opacity="0"/><stop offset="1" stop-color="#9ff7ff" stop-opacity="0.8"/>
+  </linearGradient>
+  <radialGradient id="core" cx="0.36" cy="0.3" r="0.82">
+    <stop offset="0" stop-color="#ecfeff"/><stop offset="0.25" stop-color="#6ee9fd"/><stop offset="0.68" stop-color="#1fa3f2"/><stop offset="1" stop-color="#1660df"/>
+  </radialGradient>
+  <radialGradient id="halo">
+    <stop offset="0" stop-color="#3fdcff" stop-opacity="0.72"/><stop offset="0.42" stop-color="#2aa8ff" stop-opacity="0.24"/><stop offset="1" stop-color="#2aa8ff" stop-opacity="0"/>
+  </radialGradient>
+  <radialGradient id="spark">
+    <stop offset="0" stop-color="#ffffff"/><stop offset="0.5" stop-color="#c8f8ff"/><stop offset="1" stop-color="#5fe0ff"/>
+  </radialGradient>
+  <filter id="glow" x="-25%" y="-25%" width="150%" height="150%">
+    <feGaussianBlur stdDeviation="0.219" result="b"/>
+    <feColorMatrix in="b" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 0.8 0" result="g"/>
+    <feMerge><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+  <filter id="blur3" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="0.094"/></filter>
+  <filter id="drop" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="0.438" stdDeviation="0.5" flood-color="#000" flood-opacity="0.38"/></filter>
+</defs><rect x="0" y="0" width="32" height="32" rx="7.251" fill="url(#bg)"/><rect x="0" y="0" width="32" height="32" rx="7.251" fill="url(#bgGlow)"/><rect x="0" y="0" width="32" height="32" rx="7.251" fill="url(#sheen)"/><rect x="0.16" y="0.16" width="31.68" height="31.68" rx="7.091" fill="none" stroke="#fff" stroke-opacity="0.09" stroke-width="0.5"/><path d="M16 13.156L16 5.102M18.463 14.578L25.438 10.551M18.463 17.422L25.438 21.449M16 18.844L16 26.898M13.537 17.422L6.562 21.449M13.537 14.578L6.562 10.551" fill="none" stroke="url(#inkSmall)" stroke-width="0.992" stroke-linecap="round"/><circle cx="16" cy="16" r="7.901" fill="none" stroke="url(#inkSmall)" stroke-width="1.6"/><circle cx="16" cy="16" r="2.844" fill="none" stroke="url(#inkSmall)" stroke-width="0.992"/><circle cx="16" cy="4.029" r="1.789" fill="url(#core)"/><circle cx="26.367" cy="10.014" r="1.789" fill="url(#core)"/><circle cx="26.367" cy="21.986" r="1.789" fill="url(#core)"/><circle cx="16" cy="27.971" r="1.789" fill="url(#core)"/><circle cx="5.633" cy="21.986" r="1.789" fill="url(#core)"/><circle cx="5.633" cy="10.014" r="1.789" fill="url(#core)"/><circle cx="16" cy="16" r="1.896" fill="url(#core)"/></svg>

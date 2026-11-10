@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-set-reverse-tether"
+description = "Enables the set_reverse_tether command without any pre-configured scope."
+commands.allow = ["set_reverse_tether"]
+
+[[permission]]
+identifier = "deny-set-reverse-tether"
+description = "Denies the set_reverse_tether command without any pre-configured scope."
+commands.deny = ["set_reverse_tether"]

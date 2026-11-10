@@ -1,0 +1,145 @@
+# Captun example configuration. The service owns the real file and rewrites
+# it when settings change in the GUI; comments are not preserved there.
+version = 1
+
+[hotspot]
+ssid = "Captun"
+passphrase = "change-me-please"
+band = "5ghz"
+autostart = true
+max_clients = 8                 # most devices at once; omit for the system limit
+
+[network]
+quarantine_new_clients = true   # new devices wait for approval
+isolate_clients = true          # devices cannot see each other
+block_host = true               # devices cannot reach this computer (DHCP and DNS still work)
+block_host_lan = true           # devices cannot reach this computer's LAN
+kill_switch = true              # never leak traffic when an egress is down
+transparent_routing = false     # steer traffic through the engine (experimental)
+default_egress = "direct"
+
+# A wired Ethernet or USB interface shared with devices that plug in, instead of
+# (or alongside) Wi-Fi. Off by default. With transparent_routing on, these devices
+# route through the engine like Wi-Fi clients; otherwise they get basic OS NAT.
+[access_network]
+enabled = false
+# interface = "Ethernet 2"      # the wired/USB interface to share on
+gateway = "10.73.0.1"           # this PC's address and the clients' gateway/DNS
+prefix_len = 24
+dhcp_start = "10.73.0.10"
+dhcp_end = "10.73.0.200"
+lease_secs = 3600
+nat = true                      # basic sharing; ignored when transparent_routing is on
+autostart = false
+
+[dns]
+default_upstream = "cloudflare"
+block_response = "null_ip"
+blocklist = ["doubleclick.net", "keyword:adservice"]
+enforce = true
+
+[[dns.upstream]]
+id = "cloudflare"
+protocol = "https"
+address = "1.1.1.1"
+server_name = "cloudflare-dns.com"
+
+[[dns.upstream]]
+id = "quad9"
+protocol = "tls"
+address = "9.9.9.9"
+server_name = "dns.quad9.net"
+
+[[dns.override]]
+domain = "full:hub.lan"
+addrs = ["192.168.137.1"]
+
+[tls_inspection]
+enabled = false
+bypass = ["apple.com", "full:accounts.google.com"]
+
+[portal]
+enabled = false
+
+[[egress]]
+id = "direct"
+name = "Direct"
+type = "direct"
+
+[[egress]]
+id = "ethernet"
+name = "Office Ethernet"
+type = "direct"
+interface = "Ethernet"
+
+[[egress]]
+id = "socks"
+name = "Local SOCKS"
+type = "socks5"
+server = "127.0.0.1:1080"
+
+[[egress]]
+id = "corp-http"
+name = "Corporate proxy"
+type = "http"
+server = "proxy.example.com:3128"
+username = "me"
+password = "secret"
+via = "ethernet"
+udp = { via = "socks" }
+
+[[egress]]
+id = "vless-de"
+name = "VLESS Germany"
+type = "xray"
+# Paste the link exactly as the provider gives it: vless://, vmess://, trojan://,
+# ss:// or hysteria2://. Captun runs it with the bundled Xray-core.
+link = "vless://00000000-0000-0000-0000-000000000000@example.com:443?security=reality&sni=www.example.com&fp=chrome&pbk=Z84J2IelR9ch3k8VtlVhhs5ycBUlXA7wHBWcBrjqnAw&sid=6ba85179e30d4fc2&flow=xtls-rprx-vision&type=tcp#de"
+
+# An HTTPS proxy: like an HTTP proxy, but the connection to it is encrypted.
+[[egress]]
+id = "https-proxy"
+name = "Office proxy"
+type = "http"
+server = "proxy.example.com:443"
+tls = true
+udp = "block"
+
+[[egress]]
+id = "blackhole"
+type = "block"
+
+[[group]]
+id = "kids"
+name = "Kids"
+egress = "socks"
+limit = { down_kbps = 4000, up_kbps = 1000 }
+
+[[client]]
+mac = "aa:bb:cc:dd:ee:01"
+alias = "Laptop"
+state = "approved"
+egress = "vless-de"
+
+[[client]]
+mac = "aa:bb:cc:dd:ee:02"
+alias = "Tablet"
+state = "approved"
+group = "kids"
+
+[[rule]]
+name = "No social media at night for kids"
+groups = ["kids"]
+domains = ["instagram.com", "tiktok.com"]
+schedule = { days = ["sun", "mon", "tue", "wed", "thu"], start = "22:00", end = "07:00" }
+action = "deny"
+
+[[rule]]
+name = "Streaming through Ethernet"
+domains = ["netflix.com", "nflxvideo.net"]
+action = { route = "ethernet" }
+
+[[rule]]
+name = "No SMB/NetBIOS to the internet"
+ports = [445, "137-139"]
+action = "reject"

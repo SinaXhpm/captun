@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-start-access-network"
+description = "Enables the start_access_network command without any pre-configured scope."
+commands.allow = ["start_access_network"]
+
+[[permission]]
+identifier = "deny-start-access-network"
+description = "Denies the start_access_network command without any pre-configured scope."
+commands.deny = ["start_access_network"]

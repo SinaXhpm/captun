@@ -1,0 +1,31 @@
+[package]
+name = "captun-outbound"
+description = "Egress connectors: direct (interface-pinned), SOCKS5, HTTP(S) CONNECT, chaining"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+base64.workspace = true
+flate2.workspace = true
+httparse.workspace = true
+captun-core.workspace = true
+rustls.workspace = true
+socket2.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tokio-rustls.workspace = true
+tokio-util.workspace = true
+tracing.workspace = true
+webpki-roots.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { workspace = true, features = ["Win32_Networking_WinSock"] }
+
+[dev-dependencies]
+rcgen = "0.13"
+
+[lints]
+workspace = true

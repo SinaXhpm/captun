@@ -1,0 +1,83 @@
+[workspace]
+resolver = "3"
+members = ["crates/*", "apps/desktop/src-tauri"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.91"
+publish = false
+
+[workspace.dependencies]
+captun-adb = { path = "crates/captun-adb" }
+captun-core = { path = "crates/captun-core" }
+captun-dhcp = { path = "crates/captun-dhcp" }
+captun-engine = { path = "crates/captun-engine" }
+captun-policy = { path = "crates/captun-policy" }
+captun-sniff = { path = "crates/captun-sniff" }
+captun-outbound = { path = "crates/captun-outbound" }
+captun-dns = { path = "crates/captun-dns" }
+captun-platform = { path = "crates/captun-platform" }
+captun-ipc = { path = "crates/captun-ipc" }
+captun-tls = { path = "crates/captun-tls" }
+captun-usbdriver = { path = "crates/captun-usbdriver" }
+captun-xray = { path = "crates/captun-xray" }
+
+adb_client = { version = "3.2", default-features = false, features = ["usb"] }
+aho-corasick = "1.1"
+anyhow = "1"
+async-trait = "0.1"
+base64 = "0.22"
+bytes = "1"
+clap = { version = "4", features = ["derive"] }
+# gzip for list downloads; the pure-Rust backend.
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+hickory-proto = { version = "0.25", default-features = false, features = ["std"] }
+httparse = "1"
+ipnet = { version = "2", features = ["serde"] }
+libc = "0.2"
+percent-encoding = "2"
+rand = "0.9"
+# Certificates for HTTPS inspection, on ring like rustls (not aws-lc).
+rcgen = { version = "0.14", default-features = false, features = ["ring", "x509-parser"] }
+ring = "0.17"
+rsa = { version = "0.9", features = ["pem"] }
+# libusb for the built-in adb, compiled from source into the service and
+# linked statically on every system: macOS has no libusb of its own, and
+# Linux needs no libusb package. adb_client 3.2's "usb" feature asks for the
+# same of this same rusb (one version in Cargo.lock); saying it here keeps
+# libusb built in should a later adb_client stop asking.
+rusb = { version = "0.9", features = ["vendored"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+socket2 = { version = "0.5", features = ["all"] }
+thiserror = "2"
+time = { version = "0.3", default-features = false, features = ["std"] }
+tokio = { version = "1", features = ["full"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12", "logging"] }
+tokio-util = "0.7"
+toml = "0.8"
+url = "2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+webpki-roots = "0.26"
+windows-sys = "0.59"
+x509-parser = { version = "0.18", default-features = false, features = ["verify"] }
+zeroize = { version = "1", features = ["derive"] }
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+missing_debug_implementations = "warn"
+unreachable_pub = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+unwrap_used = "warn"
+expect_used = "warn"
+dbg_macro = "warn"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true

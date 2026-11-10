@@ -1,0 +1,15 @@
+[package]
+name = "captun-dhcp"
+description = "A minimal, bounds-checked DHCPv4 server for Captun's wired/USB access networks"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+[lints]
+workspace = true

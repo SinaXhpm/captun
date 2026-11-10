@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-stop-hotspot"
+description = "Enables the stop_hotspot command without any pre-configured scope."
+commands.allow = ["stop_hotspot"]
+
+[[permission]]
+identifier = "deny-stop-hotspot"
+description = "Denies the stop_hotspot command without any pre-configured scope."
+commands.deny = ["stop_hotspot"]

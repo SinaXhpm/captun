@@ -1,0 +1,27 @@
+[package]
+name = "captun-dns"
+description = "Per-client DNS forwarder: blocklist, overrides, cache, UDP/TCP/DoT/DoH upstreams over any egress"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+hickory-proto.workspace = true
+httparse.workspace = true
+captun-core.workspace = true
+captun-outbound.workspace = true
+rand.workspace = true
+rustls.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tokio-rustls.workspace = true
+tracing.workspace = true
+webpki-roots.workspace = true
+
+[dev-dependencies]
+async-trait.workspace = true
+rcgen = "0.13"
+
+[lints]
+workspace = true
