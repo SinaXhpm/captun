@@ -27,6 +27,7 @@ tun = { version = "0.8", default-features = false, features = ["async"] }
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.61", features = [
     "Devices_Radios",
+    "Devices_WiFi",
     "Foundation",
     "Foundation_Collections",
     "Networking",

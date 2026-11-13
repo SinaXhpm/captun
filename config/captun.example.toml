@@ -15,6 +15,13 @@ isolate_clients = true          # devices cannot see each other
 block_host = true               # devices cannot reach this computer (DHCP and DNS still work)
 block_host_lan = true           # devices cannot reach this computer's LAN
 kill_switch = true              # never leak traffic when an egress is down
+# limit = { down_kbps = 20000, up_kbps = 5000 }   # all devices together, kbit/s (needs transparent_routing)
+# Each device's data allowance unless it or its group has one: MB of 1,048,576
+# bytes, download and upload together, per "day", "week", "month" or "total"
+# (never starts over by itself). Once used up the device is slowed to
+# then_kbps, or without it gets no internet until the allowance starts over.
+# device_quota = { mb = 2048, every = "day", then_kbps = 256 }
+# week_starts = "mon"           # the day weekly allowances start over
 transparent_routing = false     # steer traffic through the engine (experimental)
 default_egress = "direct"
 
@@ -114,6 +121,7 @@ id = "kids"
 name = "Kids"
 egress = "socks"
 limit = { down_kbps = 4000, up_kbps = 1000 }
+quota = { mb = 1024, every = "day" }   # each device of the group: 1 GB a day, then no internet
 
 [[client]]
 mac = "aa:bb:cc:dd:ee:01"

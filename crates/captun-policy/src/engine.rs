@@ -52,6 +52,9 @@ pub enum Admission {
     Quarantined,
     /// The hotspot is at its device limit: held until a slot frees up.
     OverLimit,
+    /// The device used up its data allowance, which then cuts it off: no
+    /// internet until the allowance starts over.
+    OverQuota,
     Blocked,
 }
 
@@ -166,6 +169,9 @@ pub struct PolicyEngine {
     quarantine: bool,
     /// Stations held back by the hotspot's device limit (runtime state, not config).
     over_limit: HashSet<MacAddr>,
+    /// Stations that used up their data allowance (runtime state too), with
+    /// the speed they are slowed to; none means cut off.
+    over_quota: HashMap<MacAddr, Option<u64>>,
     /// How often each rule decided, one counter per entry of `config.rules`.
     hits: Arc<HitCounters>,
 }
@@ -237,6 +243,7 @@ impl PolicyEngine {
             default_dns: config.dns.default_upstream.clone(),
             quarantine: config.network.quarantine_new_clients,
             over_limit: HashSet::new(),
+            over_quota: HashMap::new(),
             hits: Arc::new(HitCounters::new(config.rules.len())),
         }
     }
@@ -244,6 +251,13 @@ impl PolicyEngine {
     /// Marks the stations the device limit currently holds back.
     pub fn with_over_limit(mut self, over_limit: HashSet<MacAddr>) -> Self {
         self.over_limit = over_limit;
+        self
+    }
+
+    /// Marks the stations that used up their data allowance, each with the
+    /// speed (kbit/s) it is slowed to, or none to cut it off.
+    pub fn with_over_quota(mut self, over_quota: HashMap<MacAddr, Option<u64>>) -> Self {
+        self.over_quota = over_quota;
         self
     }
 
@@ -267,6 +281,7 @@ impl PolicyEngine {
         match self.clients.get(client).map_or(ClientState::Pending, |c| c.state) {
             ClientState::Blocked => Admission::Blocked,
             _ if self.over_limit.contains(client) => Admission::OverLimit,
+            _ if self.over_quota.get(client).is_some_and(Option::is_none) => Admission::OverQuota,
             ClientState::Approved => Admission::Allowed,
             ClientState::Pending if self.quarantine => Admission::Quarantined,
             ClientState::Pending => Admission::Allowed,
@@ -286,8 +301,18 @@ impl PolicyEngine {
         self.clients.get(client).map_or(&self.default_dns, |c| &c.dns_upstream)
     }
 
+    /// A station's speed limit: its own (or its group's), and the slower
+    /// speed it is held to once its data allowance is used up.
     pub fn rate_limit_for(&self, client: &MacAddr) -> Option<RateLimit> {
-        self.clients.get(client).and_then(|c| c.limit)
+        let own = self.clients.get(client).and_then(|c| c.limit);
+        match self.over_quota.get(client).copied().flatten() {
+            None => own,
+            Some(slow) => {
+                let own = own.unwrap_or_default();
+                let tighter = |limit: Option<u64>| Some(limit.map_or(slow, |l| l.min(slow)));
+                Some(RateLimit { down_kbps: tighter(own.down_kbps), up_kbps: tighter(own.up_kbps) })
+            }
+        }
     }
 
     pub fn inspects_tls(&self, client: &MacAddr) -> bool {
@@ -478,6 +503,25 @@ mod tests {
         assert_eq!(e.admission(&mac(3)), Admission::Blocked, "a block outranks the limit");
         assert_eq!(e.admission(&mac(2)), Admission::Allowed);
         assert_eq!(e.decide(&flow(1, None, 443, at("12:00"))).verdict, Verdict::Deny);
+    }
+
+    #[test]
+    fn a_used_up_allowance_cuts_off_or_slows_down_but_never_outranks_a_block() {
+        let over = [(mac(1), Some(256)), (mac(2), None), (mac(3), None), (mac(9), Some(64))].into_iter().collect();
+        let e = engine().with_over_quota(over);
+        // Slowed: still allowed, at its own limit or the slow speed, whichever is tighter.
+        assert_eq!(e.admission(&mac(1)), Admission::Allowed);
+        assert_eq!(e.rate_limit_for(&mac(1)), Some(RateLimit { down_kbps: Some(256), up_kbps: Some(256) }));
+        assert_eq!(e.decide(&flow(1, None, 443, at("12:00"))).verdict, Verdict::Allow);
+        // Cut off: no internet, as with any other hold.
+        assert_eq!(e.admission(&mac(2)), Admission::OverQuota);
+        assert_eq!(e.decide(&flow(2, None, 443, at("12:00"))).verdict, Verdict::Deny);
+        assert_eq!(e.admission(&mac(3)), Admission::Blocked, "a block outranks the allowance");
+        // An unknown device still waits for approval first.
+        assert_eq!(e.admission(&mac(9)), Admission::Quarantined);
+        assert_eq!(e.rate_limit_for(&mac(9)), Some(RateLimit { down_kbps: Some(64), up_kbps: Some(64) }));
+        // Nobody over: the limits as configured.
+        assert_eq!(engine().rate_limit_for(&mac(1)).unwrap().down_kbps, Some(2000));
     }
 
     #[test]

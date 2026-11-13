@@ -12,7 +12,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use captun_core::link::{Security, Transport, TransportKind, VpnLink, VpnProtocol};
+use captun_core::link::{Security, Transport, TransportKind, VpnLink, VpnProtocol, xray_settings_problem};
 use serde_json::{Map, Value, json};
 
 /// Outbound files are small; anything larger is not one.
@@ -172,8 +172,14 @@ fn transport_settings(link: &VpnLink, t: &Transport) -> Option<(&'static str, Va
             set(&mut s, "path", &t.path);
             set(&mut s, "host", &t.host);
             set(&mut s, "mode", &t.mode);
-            // Parsing already checked that this is a JSON object.
-            if let Some(extra) = t.extra.as_deref().and_then(|e| serde_json::from_str::<Value>(e).ok()) {
+            // Parsing already checked it, and this again: a JSON object with
+            // nothing in it that makes Xray use files.
+            if let Some(extra) = t
+                .extra
+                .as_deref()
+                .and_then(|e| serde_json::from_str::<Value>(e).ok())
+                .filter(|e| e.is_object() && xray_settings_problem(e).is_none())
+            {
                 s.insert("extra".into(), extra);
             }
             "xhttpSettings"
@@ -226,7 +232,12 @@ fn parse_outbound(path: &Path, text: &str) -> Result<Value, String> {
         None => Some(value),
     };
     match outbound {
-        Some(o) if o.get("protocol").is_some_and(Value::is_string) => Ok(o),
+        // Its settings reach Xray as they are, so they get the same check as
+        // a link's: nothing that makes Xray use files.
+        Some(o) if o.get("protocol").is_some_and(Value::is_string) => match xray_settings_problem(&o) {
+            Some(problem) => Err(format!("Captun does not use the outbound in {}: {problem}", path.display())),
+            None => Ok(o),
+        },
         _ => Err(format!("{} holds no Xray outbound (an object with a \"protocol\")", path.display())),
     }
 }
@@ -487,6 +498,30 @@ mod tests {
         fs::write(&bad, "secret-token-123 not json").unwrap();
         let err = outbound_from_file(&bad).unwrap_err();
         assert!(!err.contains("secret-token-123"), "{err}");
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn outbound_files_that_make_xray_use_files_are_refused() {
+        let dir = std::env::temp_dir().join(format!("captun-xray-files-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let cases = [
+            (
+                r#"{"outbounds":[{"protocol":"vless","streamSettings":{"tlsSettings":{"certificates":[{"KeyFile":"k.pem"}]}}}]}"#,
+                "keyFile",
+            ),
+            (r#"{"protocol":"trojan","streamSettings":{"realitySettings":{"masterKeyLog":"/x"}}}"#, "masterKeyLog"),
+            (r#"{"protocol":"freedom","settings":{"redirect":"\\\\host\\share"}}"#, "network"),
+        ];
+        for (i, (text, named)) in cases.into_iter().enumerate() {
+            let file = dir.join(format!("{i}.json"));
+            fs::write(&file, text).unwrap();
+            let err = outbound_from_file(&file).unwrap_err();
+            assert!(err.contains(named), "{text}: {err}");
+        }
+        let fine = dir.join("fine.json");
+        fs::write(&fine, r#"{"protocol":"vless","streamSettings":{"wsSettings":{"path":"//ws"}}}"#).unwrap();
+        assert_eq!(outbound_from_file(&fine).unwrap()["protocol"], "vless");
         fs::remove_dir_all(&dir).unwrap();
     }
 

@@ -13,13 +13,11 @@ use tokio::{
 };
 use tokio_rustls::TlsConnector;
 
-/// The project's home on the web. It still carries the project's earlier
-/// name (OmniHub) until the site itself moves.
-pub(crate) const WEBSITE: &str = "https://omnihub.sinaxhpm.com";
+/// The project's home on the web: its GitHub page.
+pub(crate) const WEBSITE: &str = "https://github.com/SinaXhpm/captun";
 /// The GitHub repository, `owner/name`. Releases published there are what
-/// "Check for updates" compares against. Still under the earlier name until
-/// the repository is renamed; changing it first would break update checks.
-pub(crate) const REPOSITORY: &str = "sinaxhpm/omnihub";
+/// "Check for updates" compares against.
+pub(crate) const REPOSITORY: &str = "SinaXhpm/captun";
 
 const API_HOST: &str = "api.github.com";
 const TIMEOUT: Duration = Duration::from_secs(12);

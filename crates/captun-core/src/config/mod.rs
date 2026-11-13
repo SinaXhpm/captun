@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 
 pub use rule::{PortRange, Protocol, RuleAction, RuleConfig};
 pub use schedule::{ClockTime, Schedule, Weekday};
-pub use validate::{is_list_link, validate_passphrase, validate_ssid};
+pub use validate::{MAX_QUOTA_MB, is_list_link, validate_passphrase, validate_ssid};
 
 use crate::{ClientState, DomainPattern, EgressConfig, EgressId, EgressKind, MacAddr, Secret, TargetAddr};
 
@@ -138,6 +138,16 @@ impl Config {
         self.clients.iter().find(|c| &c.mac == mac)
     }
 
+    /// The data allowance `mac` has: its own, else its group's, else the one
+    /// every device has; none when none of them sets one.
+    pub fn quota_for(&self, mac: &MacAddr) -> Option<Quota> {
+        let profile = self.client(mac);
+        profile
+            .and_then(|p| p.quota)
+            .or_else(|| profile.and_then(|p| p.group.as_deref()).and_then(|g| self.group(g)).and_then(|g| g.quota))
+            .or(self.network.device_quota)
+    }
+
     /// Returns the profile for `mac`, creating an empty one if needed.
     pub fn client_mut(&mut self, mac: MacAddr) -> &mut ClientProfile {
         let index = match self.clients.iter().position(|c| c.mac == mac) {
@@ -161,8 +171,10 @@ pub struct HotspotConfig {
     pub passphrase: Secret,
     #[serde(default)]
     pub band: WifiBand,
-    /// Wireless interface that hosts the access point (Linux). `None` lets the
-    /// backend choose.
+    /// The Wi-Fi adapter that hosts the access point: its name as the adapter
+    /// list shows it ("Wi-Fi 2" on Windows, "wlan1" on Linux). `None` lets the
+    /// system choose. Windows hosts one Mobile hotspot at a time and is asked
+    /// to put it on this adapter.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub interface: Option<String>,
     /// Bring the hotspot up as soon as the service starts.
@@ -235,6 +247,20 @@ pub struct NetworkConfig {
     /// through another route.
     #[serde(default = "yes")]
     pub kill_switch: bool,
+    /// The speed limit on all devices together, shared by every flow of every
+    /// device; a device's own limit (or its group's) still applies within it.
+    /// Like those, it takes effect while traffic goes through the routing
+    /// engine (`transparent_routing`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub limit: Option<RateLimit>,
+    /// The data allowance of each device that has none of its own and none
+    /// from its group. Each device counts its own use against it. Like the
+    /// speed limits, it is kept while traffic goes through the routing engine.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub device_quota: Option<Quota>,
+    /// The day a weekly data allowance starts over on.
+    #[serde(default = "default_week_start")]
+    pub week_starts: Weekday,
     /// Steer hotspot traffic through the routing engine so per-client egress,
     /// bandwidth limits and live statistics take effect. Experimental and off
     /// by default: it sets up a TUN device and OS routing and needs validation
@@ -253,6 +279,9 @@ impl Default for NetworkConfig {
             block_host: true,
             block_host_lan: true,
             kill_switch: true,
+            limit: None,
+            device_quota: None,
+            week_starts: default_week_start(),
             transparent_routing: false,
             default_egress: default_egress_id(),
         }
@@ -341,6 +370,44 @@ pub struct RateLimit {
     pub up_kbps: Option<u64>,
 }
 
+/// A data allowance: how much a device may use in each period, download and
+/// upload together, and what happens once that is used up.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Quota {
+    /// Megabytes in each period, as the app shows sizes: 1 MB is
+    /// [`MB`] bytes (1,048,576), 1 GB 1,024 MB.
+    pub mb: u64,
+    pub every: QuotaPeriod,
+    /// Once it is used up, the device is slowed to this speed (kbit/s, both
+    /// ways) until the period ends; without one it gets no internet then.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub then_kbps: Option<u64>,
+}
+
+impl Quota {
+    /// The allowance in bytes.
+    pub fn bytes(&self) -> u64 {
+        self.mb.saturating_mul(MB)
+    }
+}
+
+/// Bytes in a megabyte of a data allowance.
+pub const MB: u64 = 1 << 20;
+
+/// How often a data allowance starts over: each day at midnight, each week
+/// on `network.week_starts`, each month on its first day (all local time),
+/// or never, until it is reset by hand.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum QuotaPeriod {
+    #[default]
+    Day,
+    Week,
+    Month,
+    Total,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct GroupConfig {
@@ -353,6 +420,10 @@ pub struct GroupConfig {
     pub dns_upstream: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub limit: Option<RateLimit>,
+    /// Each device of the group gets this data allowance, unless it has one
+    /// of its own.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub quota: Option<Quota>,
 }
 
 /// Persistent per-station settings, keyed by MAC.
@@ -371,6 +442,9 @@ pub struct ClientProfile {
     pub egress: Option<EgressId>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dns_upstream: Option<String>,
+    /// Overrides the group and global data allowance for this station.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub quota: Option<Quota>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub limit: Option<RateLimit>,
     /// The admin allows TLS inspection for this station. It only takes effect
@@ -390,6 +464,7 @@ impl ClientProfile {
             group: None,
             egress: None,
             dns_upstream: None,
+            quota: None,
             limit: None,
             inspect_tls: false,
             tls_consent: None,
@@ -682,6 +757,10 @@ fn default_max_body() -> usize {
 
 fn default_retention_hours() -> u32 {
     24
+}
+
+fn default_week_start() -> Weekday {
+    Weekday::Mon
 }
 
 fn default_session_hours() -> u32 {

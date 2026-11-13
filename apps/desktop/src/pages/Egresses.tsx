@@ -239,7 +239,7 @@ export function Egresses() {
                 >
                   <Activity size={14} />
                 </button>
-                {!isDefault && on && (
+                {!isDefault && on ? (
                   <button
                     className="icon-button"
                     aria-label={`Make ${egressName(e)} the default`}
@@ -248,6 +248,9 @@ export function Egresses() {
                   >
                     <Star size={14} />
                   </button>
+                ) : (
+                  // Its place kept, so every row's buttons line up.
+                  <span className="icon-button-spacer" aria-hidden="true" />
                 )}
                 <button className="icon-button" aria-label={`Edit ${egressName(e)}`} title="Edit" onClick={() => setEditing({ egress: e })}>
                   <Pencil size={14} />

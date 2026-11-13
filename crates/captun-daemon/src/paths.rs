@@ -6,9 +6,6 @@ use std::path::PathBuf;
 /// This program's name in its folder names: as on Windows and macOS, then as
 /// on Linux.
 const NAME: (&str, &str) = ("Captun", "captun");
-/// What this program was called before (OmniHub), for the folders
-/// `migrate.rs` takes saved data over from. They are only read.
-const EARLIER_NAME: (&str, &str) = ("OmniHub", "omnihub");
 
 /// `%ProgramData%\<name>`, `/Library/Application Support/<name>` or
 /// `/etc/<name>`.
@@ -643,11 +640,6 @@ pub(crate) fn adb_key() -> PathBuf {
     data_dir().join("adbkey")
 }
 
-/// The phone key OmniHub made, which phones may have allowed.
-pub(crate) fn earlier_adb_key() -> PathBuf {
-    data_dir_of(EARLIER_NAME).join("adbkey")
-}
-
 fn lists_dir_of(names: (&str, &str)) -> PathBuf {
     #[cfg(all(unix, not(target_os = "macos")))]
     return PathBuf::from("/var/lib").join(names.1).join("lists");
@@ -660,9 +652,9 @@ pub(crate) fn lists_dir() -> PathBuf {
     lists_dir_of(NAME)
 }
 
-/// Where OmniHub kept the online lists it downloaded.
-pub(crate) fn earlier_lists_dir() -> PathBuf {
-    lists_dir_of(EARLIER_NAME)
+/// Where each device's data use is kept, a file per day.
+pub(crate) fn usage_dir() -> PathBuf {
+    data_dir().join("usage")
 }
 
 /// The service's log of its current run (the run before is kept as `.1`).
@@ -689,17 +681,4 @@ pub(crate) fn default_token() -> PathBuf {
 /// prompt leaves no trace of who asked), else as sudo or pkexec record it.
 pub(crate) fn invoking_uid(explicit: Option<u32>) -> Option<u32> {
     explicit.or_else(|| ["PKEXEC_UID", "SUDO_UID"].iter().find_map(|var| std::env::var(var).ok()?.parse().ok()))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn omnihubs_folders_are_captuns_under_the_earlier_name() {
-        let lower = |path: PathBuf| path.to_string_lossy().to_lowercase();
-        assert_eq!(lower(earlier_lists_dir()), lower(lists_dir()).replace("captun", "omnihub"));
-        assert_eq!(lower(earlier_adb_key()), lower(adb_key()).replace("captun", "omnihub"));
-        assert_ne!(earlier_lists_dir(), lists_dir());
-    }
 }

@@ -49,9 +49,6 @@ pub(crate) struct ConnectionStatus {
     pub(crate) config_sync_error: Option<String>,
     /// Why saved settings could not be opened when Captun started, if so.
     pub(crate) settings_notice: Option<String>,
-    /// Why the settings OmniHub (Captun's earlier name) saved could not be
-    /// brought over when Captun started with none of its own, if so.
-    pub(crate) earlier_settings_notice: Option<String>,
     /// Something about the service to show on screen while not connected:
     /// an older service is being or was stopped (which turned its sharing
     /// off), or another program answered in its place. Unlike `error`, never
@@ -83,11 +80,10 @@ impl AppState {
         let endpoint = Endpoint::default_service();
         let token_path = paths::token_path();
         let settings = Settings::new();
-        let (saved, notice, earlier_notice) = match settings.load() {
-            Loaded::Saved(config) => (Some(*config), None, None),
-            Loaded::Missing => (None, None, None),
-            Loaded::Unreadable(why) => (None, Some(why), None),
-            Loaded::NotTakenOver(why) => (None, None, Some(why)),
+        let (saved, notice) = match settings.load() {
+            Loaded::Saved(config) => (Some(*config), None),
+            Loaded::Missing => (None, None),
+            Loaded::Unreadable(why) => (None, Some(why)),
         };
         let status = ConnectionStatus {
             connected: false,
@@ -99,7 +95,6 @@ impl AppState {
             config_pending: false,
             config_sync_error: None,
             settings_notice: notice,
-            earlier_settings_notice: earlier_notice,
             service_notice: None,
         };
         Self {
@@ -143,7 +138,6 @@ impl AppState {
         self.update_status(app, |s| {
             s.config_pending = true;
             s.settings_notice = None;
-            s.earlier_settings_notice = None;
         });
         Ok(())
     }
@@ -155,7 +149,6 @@ impl AppState {
             s.config_pending = false;
             s.config_sync_error = None;
             s.settings_notice = None;
-            s.earlier_settings_notice = None;
         });
         Ok(())
     }

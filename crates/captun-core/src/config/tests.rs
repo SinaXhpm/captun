@@ -251,3 +251,47 @@ fn vpn_links_are_checked_when_saved() {
     let errors = invalid(&with_link("vless://nope"));
     assert!(errors[0].starts_with("outbound \"vpn\":"), "{errors:?}");
 }
+
+#[test]
+fn a_devices_quota_is_its_own_else_its_groups_else_everyones() {
+    let day = |mb| Quota { mb, every: QuotaPeriod::Day, then_kbps: None };
+    let mut c = Config::default();
+    let (own, grouped, plain) = (MacAddr::new([2, 0, 0, 0, 0, 1]), MacAddr::new([2, 0, 0, 0, 0, 2]), MacAddr::new([2, 0, 0, 0, 0, 3]));
+    assert_eq!(c.quota_for(&plain), None, "none set: unlimited");
+
+    c.network.device_quota = Some(day(1000));
+    c.groups.push(GroupConfig { id: "kids".into(), name: None, egress: None, dns_upstream: None, limit: None, quota: Some(day(500)) });
+    c.client_mut(own).group = Some("kids".into());
+    c.client_mut(own).quota = Some(day(50));
+    c.client_mut(grouped).group = Some("kids".into());
+    c.validate().unwrap();
+
+    assert_eq!(c.quota_for(&own), Some(day(50)));
+    assert_eq!(c.quota_for(&grouped), Some(day(500)));
+    assert_eq!(c.quota_for(&plain), Some(day(1000)), "a device with no settings gets everyone's");
+    assert_eq!(day(3).bytes(), 3 * 1_048_576);
+}
+
+#[test]
+fn quotas_round_trip_and_are_checked() {
+    let text = r#"
+[network]
+week_starts = "sat"
+device_quota = { mb = 2000, every = "week", then_kbps = 256 }
+
+[[client]]
+mac = "02:00:00:00:00:01"
+quota = { mb = 10, every = "total" }
+"#;
+    let c = Config::from_toml(text).unwrap();
+    assert_eq!(c.network.week_starts, Weekday::Sat);
+    assert_eq!(c.network.device_quota, Some(Quota { mb: 2000, every: QuotaPeriod::Week, then_kbps: Some(256) }));
+    assert_eq!(c.clients[0].quota, Some(Quota { mb: 10, every: QuotaPeriod::Total, then_kbps: None }));
+    assert_eq!(Config::from_toml(&c.to_toml().unwrap()).unwrap(), c);
+
+    let mut bad = Config::default();
+    bad.network.device_quota = Some(Quota { mb: 0, every: QuotaPeriod::Day, then_kbps: Some(0) });
+    let errors = invalid(&bad);
+    assert!(errors.iter().any(|e| e.contains("between 1 MB")), "{errors:?}");
+    assert!(errors.iter().any(|e| e.contains("used up must be greater than 0")), "{errors:?}");
+}

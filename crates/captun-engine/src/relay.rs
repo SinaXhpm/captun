@@ -9,21 +9,23 @@ use crate::meter::{Direction, FlowMeter, SharedBucket};
 const CHUNK: usize = 16 * 1024;
 
 /// Waits as long as `bucket` (the device's limit in one direction, shared by
-/// its flows) asks before `bytes` may go.
+/// its flows, and the limit on all devices together) asks before `bytes` may
+/// go.
 pub(crate) async fn pace(bucket: Option<&SharedBucket>, bytes: usize) {
     let Some(bucket) = bucket else { return };
-    let wait = bucket.lock().unwrap_or_else(|e| e.into_inner()).take(bytes, Instant::now());
+    let wait = bucket.take(bytes, Instant::now());
     if !wait.is_zero() {
         tokio::time::sleep(wait).await;
     }
 }
 
 /// Whether a datagram of `bytes` may go now under `bucket`, the device's
-/// limit in one direction. One that may not is dropped, as a link at its
-/// limit would drop it: datagrams are never held back, so no queue of them
-/// builds up behind the limit, and the apps that send them slow down.
+/// limit in one direction and the one on all devices together. One that may
+/// not is dropped, as a link at its limit would drop it: datagrams are never
+/// held back, so no queue of them builds up behind the limit, and the apps
+/// that send them slow down.
 pub(crate) fn within_limit(bucket: Option<&SharedBucket>, bytes: usize) -> bool {
-    bucket.is_none_or(|bucket| bucket.lock().unwrap_or_else(|e| e.into_inner()).try_take(bytes, Instant::now()))
+    bucket.is_none_or(|bucket| bucket.try_take(bytes, Instant::now()))
 }
 
 /// Copies one direction of a flow until EOF, pacing it to the device's limit

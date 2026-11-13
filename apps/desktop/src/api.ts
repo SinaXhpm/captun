@@ -23,6 +23,7 @@ import type {
   TargetAddr,
   TetherOutcome,
   UpdateInfo,
+  UsageReport,
 } from "./types";
 
 /** Error thrown by every API call; `message` is the service's text verbatim. */
@@ -101,6 +102,12 @@ export const api = {
    */
   testRules: (target: string, device: MacAddr | null, port: number | null, protocol: Protocol) =>
     call<RuleTestResult>("test_rules", { target, device, port, protocol }),
+  /** Data use between each two neighbouring `bounds` (ms), by `device` or all, and per device. */
+  getUsage: (bounds: number[], device: MacAddr | null) => call<UsageReport>("get_usage", { bounds, device }),
+  /** Starts a device's data allowance over now. */
+  resetQuota: (mac: MacAddr) => call<void>("reset_quota", { mac }),
+  /** Gives a device `mb` more megabytes in this period of its allowance. */
+  addQuota: (mac: MacAddr, mb: number) => call<void>("add_quota", { mac, mb }),
 };
 
 export function onConnection(handler: (status: ConnectionStatus) => void): Promise<UnlistenFn> {

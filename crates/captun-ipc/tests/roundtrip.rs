@@ -183,9 +183,9 @@ async fn pipe_name_cannot_be_squatted() {
     assert!(IpcListener::bind(&endpoint, &PipeAccess::InteractiveUsers).is_err());
 }
 
-/// How the GUI and the service look for a service from when Captun was called
-/// OmniHub: seen while it listens, also while its one instance is busy with a
-/// client, and not once it has stopped (on Unix its socket file stays behind).
+/// How the GUI and the service look for a running service: seen while it
+/// listens, also while its one instance is busy with a client, and not once
+/// it has stopped (on Unix its socket file stays behind).
 #[tokio::test]
 async fn a_listening_service_is_seen_without_talking_to_it() {
     let endpoint = test_endpoint("in-use");
@@ -197,5 +197,4 @@ async fn a_listening_service_is_seen_without_talking_to_it() {
     drop(busy);
     drop(listener);
     assert!(!endpoint.is_in_use(), "stopped");
-    assert_ne!(Endpoint::earlier_service(), Endpoint::default_service());
 }

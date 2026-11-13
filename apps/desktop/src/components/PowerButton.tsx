@@ -3,13 +3,16 @@ import { useEffect, useRef } from "react";
 
 export type PowerPhase = "off" | "busy" | "on" | "error" | "unavailable";
 
-/** How much faster than the connecting speed (one turn in 18 s, set in
- * styles.css) the wheel turns once sharing is on: one turn in 6 s. */
-const SHARING_RATE = 3;
+/** The wheel's speed while sharing, against the turning-on speed (one turn
+ * in 3 s, set in styles.css): one calm turn in 14 s. */
+const SAILING_RATE = 3 / 14;
+/** Where the wheel starts from rest when sharing turns on or off: slowly,
+ * gathering speed, as a hand puts its weight into it. */
+const FROM_REST = 0.12;
 /** The speed changes over this long, in a few small steps, so the wheel
  * speeds up and slows down instead of lurching. */
-const RATE_CHANGE_MS = 600;
-const RATE_STEPS = 8;
+const RATE_CHANGE_MS = 900;
+const RATE_STEPS = 12;
 
 /** A point `r` out from the middle of the 200 × 200 drawing, `deg` clockwise from three o'clock. */
 function at(r: number, deg: number): [number, number] {
@@ -17,22 +20,32 @@ function at(r: number, deg: number): [number, number] {
   return [Math.round((100 + r * Math.cos(a)) * 100) / 100, Math.round((100 + r * Math.sin(a)) * 100) / 100];
 }
 
-// The logo's helm around the button: a rim, six spokes out of it and a handle
-// on each, one for every device a link reaches. Worked out once.
+/** A line from `r1` to `r2` out from the middle at each angle. */
+function rays(angles: number[], r1: number, r2: number): string {
+  return angles
+    .map((deg) => {
+      const [x1, y1] = at(r1, deg);
+      const [x2, y2] = at(r2, deg);
+      return `M${x1} ${y1}L${x2} ${y2}`;
+    })
+    .join("");
+}
+
+// A ship's wheel round the button, the logo's helm: a rim with a band inside
+// it, six spokes out of it and a long handle on each, one for every device a
+// link reaches. Worked out once.
 const ANGLES = [-90, -30, 30, 90, 150, 210];
-const SPOKES = ANGLES.map((deg) => {
-  const [x1, y1] = at(71, deg);
-  const [x2, y2] = at(80, deg);
-  return `M${x1} ${y1}L${x2} ${y2}`;
-}).join("");
-const HANDLES = ANGLES.map((deg) => at(88, deg));
+const SPOKES = rays(ANGLES, 68, 80);
+const HANDLES = rays(ANGLES, 81, 93);
 
 /**
- * The big round start/stop button, drawn as the logo's helm: this computer is
- * the hub in the middle (the icon and word), the handles round the rim are the
- * devices. While sharing connects the wheel turns very slowly; once it is on,
- * the handles light up with a still glow behind and the wheel keeps turning,
- * faster. When sharing is off it rests where it stopped.
+ * The big round start/stop button, drawn as a ship's wheel in brass: this
+ * computer is the hub in the middle (the icon and word), the handles round
+ * the rim are the devices. Turning sharing on or off, the wheel is put to
+ * work: it gathers speed and turns briskly until it is done, even when the
+ * system asks for less motion, as it is what says the app is busy. Once
+ * sharing is on the handles light up and the wheel keeps a calm turn; when
+ * sharing is off it rests where it stopped.
  */
 export function PowerButton({
   phase,
@@ -47,22 +60,29 @@ export function PowerButton({
 }) {
   const disabled = !onClick || phase === "busy" || phase === "unavailable";
   const helm = useRef<SVGSVGElement>(null);
+  const last = useRef<PowerPhase>(phase);
 
   // The turn is a CSS animation (styles.css, "helm-turn"); only its speed is
   // set here. updatePlaybackRate keeps the wheel's angle, so changing speed
-  // never makes it jump. With reduced motion there is no animation to find.
+  // never makes it jump. With reduced motion only the busy turn exists.
   useEffect(() => {
+    const was = last.current;
+    last.current = phase;
     const turn = helm.current
       ?.getAnimations()
       .find((a): a is CSSAnimation => a instanceof CSSAnimation && a.animationName === "helm-turn");
     if (!turn) return;
-    const target = phase === "on" ? SHARING_RATE : 1;
-    const from = turn.playbackRate;
+    const target = phase === "on" ? SAILING_RATE : 1;
+    const fromRest = phase === "busy" && was !== "busy" && was !== "on";
+    const from = fromRest ? FROM_REST : turn.playbackRate;
     if (from === target) return;
+    if (fromRest) turn.updatePlaybackRate(from);
     let step = 0;
     const timer = window.setInterval(() => {
       step += 1;
-      turn.updatePlaybackRate(from + ((target - from) * step) / RATE_STEPS);
+      // Eased: quick at first, settling at the end.
+      const done = 1 - (1 - step / RATE_STEPS) ** 2;
+      turn.updatePlaybackRate(from + (target - from) * done);
       if (step >= RATE_STEPS) window.clearInterval(timer);
     }, RATE_CHANGE_MS / RATE_STEPS);
     return () => window.clearInterval(timer);
@@ -74,22 +94,20 @@ export function PowerButton({
       <svg ref={helm} className="power-helm" viewBox="0 0 200 200" aria-hidden="true">
         <defs>
           <linearGradient id="power-ink" gradientUnits="userSpaceOnUse" x1="64" y1="12" x2="136" y2="188">
-            <stop offset="0" stopColor="#2af3f0" />
-            <stop offset="0.5" stopColor="#1fb0f2" />
-            <stop offset="1" stopColor="#1c5fe6" />
+            <stop offset="0" stopColor="#f7dc92" />
+            <stop offset="0.5" stopColor="#e3b04e" />
+            <stop offset="1" stopColor="#a8741f" />
           </linearGradient>
-          <radialGradient id="power-core" cx="0.36" cy="0.3" r="0.82">
-            <stop offset="0" stopColor="#ecfeff" />
-            <stop offset="0.25" stopColor="#6ee9fd" />
-            <stop offset="0.68" stopColor="#1fa3f2" />
-            <stop offset="1" stopColor="#1660df" />
-          </radialGradient>
+          <linearGradient id="power-lit" gradientUnits="userSpaceOnUse" x1="64" y1="4" x2="136" y2="196">
+            <stop offset="0" stopColor="#fff6dc" />
+            <stop offset="0.45" stopColor="#f8d98c" />
+            <stop offset="1" stopColor="#dca447" />
+          </linearGradient>
         </defs>
         <circle className="helm-rim" cx="100" cy="100" r="64" />
+        <circle className="helm-band" cx="100" cy="100" r="57" />
         <path className="helm-spokes" d={SPOKES} />
-        {HANDLES.map(([cx, cy]) => (
-          <circle key={`${cx},${cy}`} className="helm-handle" cx={cx} cy={cy} r="8.5" />
-        ))}
+        <path className="helm-handles" d={HANDLES} />
       </svg>
       <span className="power-core">
         <Power size={28} strokeWidth={2.4} aria-hidden="true" />

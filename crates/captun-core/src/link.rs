@@ -31,6 +31,68 @@ fn err<T>(message: impl Into<String>) -> Result<T, LinkError> {
     Err(LinkError(message.into()))
 }
 
+/// Xray settings that make it open a file on this computer: a TLS client
+/// certificate or key to read, or a log of TLS session keys to write.
+const XRAY_FILE_SETTINGS: [&str; 3] = ["certificateFile", "keyFile", "masterKeyLog"];
+
+/// Why settings for Xray from a VPN link or an outbound file are not passed on.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum XraySettingsProblem {
+    /// A setting that makes Xray read or write a file on this computer.
+    #[error("\"{0}\" makes Xray read or write a file on this computer")]
+    UsesFile(&'static str),
+    /// A value starting with two slashes (`\\server\share`, `//server/share`,
+    /// `\\.\device`): Windows signs in to a network path with the user's
+    /// account.
+    #[error("a setting names a network or device path")]
+    NetworkPath,
+    /// A name with other characters than ASCII, which could spell one of the
+    /// file settings to Xray (see [`xray_settings_problem`]).
+    #[error("a setting's name has characters Xray's settings never use")]
+    UnusualName,
+}
+
+/// Why `value`, settings for Xray that a VPN link or an outbound file holds,
+/// must not reach Xray, if it must not. A link comes from whoever shared it,
+/// and Xray runs with the service's rights on Windows (at low integrity, so
+/// it can still read what an administrator can) and as the user elsewhere.
+/// So nothing in it may make Xray open files here: no setting in
+/// [`XRAY_FILE_SETTINGS`] at any depth, and no value starting with two
+/// slashes either way, except a URL `path`. Xray reads its settings with
+/// Go's JSON, which matches names ignoring case, Unicode case folding
+/// included ("ſ" is an "s" to it, the Kelvin sign "K" a "k"), so names are
+/// compared ignoring ASCII case and names with other characters are refused.
+pub fn xray_settings_problem(value: &serde_json::Value) -> Option<XraySettingsProblem> {
+    use serde_json::Value;
+    // Each value with the name it is under; an array's items are under the
+    // array's name. Parsed JSON is at most 128 levels deep.
+    let mut pending = vec![(None, value)];
+    while let Some((name, value)) = pending.pop() {
+        match value {
+            Value::Object(map) => {
+                for (key, inner) in map {
+                    if !key.is_ascii() {
+                        return Some(XraySettingsProblem::UnusualName);
+                    }
+                    if let Some(setting) = XRAY_FILE_SETTINGS.iter().copied().find(|s| s.eq_ignore_ascii_case(key)) {
+                        return Some(XraySettingsProblem::UsesFile(setting));
+                    }
+                    pending.push((Some(key.as_str()), inner));
+                }
+            }
+            Value::Array(items) => pending.extend(items.iter().map(|item| (name, item))),
+            Value::String(text) if !name.is_some_and(|n| n.eq_ignore_ascii_case("path")) => {
+                let mut start = text.trim_start().chars();
+                if matches!((start.next(), start.next()), (Some('\\' | '/'), Some('\\' | '/'))) {
+                    return Some(XraySettingsProblem::NetworkPath);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
 /// A parsed share link.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ShareLink {
@@ -90,7 +152,8 @@ pub struct Transport {
     pub header_type: Option<String>,
     /// mKCP seed.
     pub seed: Option<String>,
-    /// xhttp `extra`: a JSON object, checked to parse as one.
+    /// xhttp `extra`: a JSON object, checked to parse as one and to hold
+    /// nothing that makes Xray use files ([`xray_settings_problem`]).
     pub extra: Option<String>,
 }
 
@@ -397,9 +460,12 @@ fn transport_from(kind: &str, q: &Query) -> Result<Transport, LinkError> {
     };
     let extra = q.get("extra");
     if let Some(extra) = &extra {
-        let ok = serde_json::from_str::<serde_json::Value>(extra).is_ok_and(|v| v.is_object());
-        if !ok {
+        let Some(settings) = serde_json::from_str::<serde_json::Value>(extra).ok().filter(serde_json::Value::is_object)
+        else {
             return err("the link's xhttp \"extra\" settings are not a JSON object");
+        };
+        if let Some(problem) = xray_settings_problem(&settings) {
+            return err(format!("Captun does not use this link's xhttp \"extra\" settings: {problem}"));
         }
     }
     Ok(Transport {
@@ -808,5 +874,47 @@ mod tests {
         assert_eq!(s.protocol, "VLESS");
         assert_eq!(s.transport.as_deref(), Some("gRPC"));
         assert!(s.password.is_none() && !format!("{s:?}").contains(UUID));
+    }
+
+    #[test]
+    fn xray_settings_that_open_files_are_found_however_they_are_written() {
+        use serde_json::json;
+        let problem = |v: serde_json::Value| xray_settings_problem(&v);
+        // Deep inside, in an array, in any ASCII case.
+        let deep = json!({ "downloadSettings": { "tlsSettings": { "masterKeyLog": "C:\\x.bat" } } });
+        assert_eq!(problem(deep), Some(XraySettingsProblem::UsesFile("masterKeyLog")));
+        let listed = json!({ "tlsSettings": { "certificates": [{ "CERTIFICATEFILE": "c.pem" }] } });
+        assert_eq!(problem(listed), Some(XraySettingsProblem::UsesFile("certificateFile")));
+        assert_eq!(problem(json!({ "keyfile": "" })), Some(XraySettingsProblem::UsesFile("keyFile")));
+        // Spelled with letters Go's JSON folds to ASCII ones: the long s and
+        // the Kelvin sign.
+        assert_eq!(problem(json!({ "ma\u{17f}terKeyLog": "x" })), Some(XraySettingsProblem::UnusualName));
+        assert_eq!(problem(json!({ "\u{212a}eyFile": "x" })), Some(XraySettingsProblem::UnusualName));
+        // Network and device paths under any other name, either slash.
+        for path in [r"\\host\share\c.pem", "//host/share/c.pem", r"\\.\pipe\x", r"/\host\x", "  \\\\host\\x"] {
+            assert_eq!(problem(json!({ "s": [{ "redirect": path }] })), Some(XraySettingsProblem::NetworkPath), "{path}");
+        }
+        // What links really hold passes, a URL path with two slashes too.
+        let fine = json!({
+            "path": "//double", "headers": { "User-Agent": "Mozilla/5.0" }, "xPaddingBytes": "100-1000",
+            "xmux": { "maxConcurrency": "16-32" },
+            "downloadSettings": { "address": "cdn.example", "port": 443, "network": "xhttp", "security": "tls",
+                "tlsSettings": { "serverName": "cdn.example", "alpn": ["h2"] },
+                "xhttpSettings": { "path": ["//dl"], "mode": "stream-one" } },
+        });
+        assert_eq!(problem(fine), None);
+    }
+
+    #[test]
+    fn a_link_whose_extra_settings_open_files_is_refused() {
+        let extra = r#"{"downloadSettings":{"tlsSettings":{"masterKeyLog":"C:\\Windows\\System32\\x.bat"}}}"#;
+        let encoded = percent_encoding::utf8_percent_encode(extra, percent_encoding::NON_ALPHANUMERIC).to_string();
+        let link = format!("vless://{UUID}@h.example:443?type=xhttp&security=tls&extra={encoded}");
+        let e = ShareLink::parse(&link).unwrap_err().to_string();
+        assert!(e.contains("masterKeyLog") && e.contains("extra"), "{e}");
+
+        let fine = percent_encoding::utf8_percent_encode(r#"{"xPaddingBytes":"100-1000"}"#, percent_encoding::NON_ALPHANUMERIC);
+        let v = vpn(&format!("vless://{UUID}@h.example:443?type=xhttp&security=tls&extra={fine}"));
+        assert_eq!(v.transport.extra.as_deref(), Some(r#"{"xPaddingBytes":"100-1000"}"#));
     }
 }

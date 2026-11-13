@@ -43,6 +43,12 @@ export interface NetworkConfig {
   /** Devices cannot reach this computer's home network or router. */
   block_host_lan: boolean;
   kill_switch: boolean;
+  /** The speed limit on all devices together; omitted means unlimited. */
+  limit?: RateLimit | null;
+  /** The data allowance of each device that has none of its own or from its group. */
+  device_quota?: Quota | null;
+  /** The day weekly allowances start over on. */
+  week_starts?: Weekday;
   transparent_routing: boolean;
   default_egress: EgressId;
 }
@@ -64,11 +70,52 @@ export interface RateLimit {
   up_kbps?: number | null;
 }
 
+export type QuotaPeriod = "day" | "week" | "month" | "total";
+
+/** A data allowance: download and upload together, per period. */
+export interface Quota {
+  /** Megabytes of 1,048,576 bytes (1 GB is 1,024 MB). */
+  mb: number;
+  every: QuotaPeriod;
+  /** Once used up: slowed to this speed (kbit/s); omitted means no internet until it starts over. */
+  then_kbps?: number | null;
+}
+
+/** A device's data allowance as it stands. */
+export interface QuotaUse {
+  quota: Quota;
+  /** Bytes used in this period. */
+  used: number;
+  /** Bytes allowed in this period, with any extra given. */
+  allowed: number;
+  over: boolean;
+  /** When it starts over (ms); null for one that only a reset starts over. */
+  resets_at_ms: number | null;
+}
+
+export interface UsageBytes {
+  down: number;
+  up: number;
+}
+
+export interface DeviceUsage extends UsageBytes {
+  mac: MacAddr;
+}
+
+/** Data use between each two neighbouring times asked about, and per device. */
+export interface UsageReport {
+  buckets: UsageBytes[];
+  devices: DeviceUsage[];
+  /** The oldest use kept (ms), if any is. */
+  kept_since_ms: number | null;
+}
+
 export interface GroupConfig {
   id: string;
   name?: string | null;
   egress?: EgressId | null;
   dns_upstream?: string | null;
+  quota?: Quota | null;
   limit?: RateLimit | null;
 }
 
@@ -84,6 +131,7 @@ export interface ClientProfile {
   group?: string | null;
   egress?: EgressId | null;
   dns_upstream?: string | null;
+  quota?: Quota | null;
   limit?: RateLimit | null;
   inspect_tls: boolean;
   tls_consent?: TlsConsent | null;
@@ -335,6 +383,8 @@ export interface ClientView {
   state: ClientState;
   /** Connected while the hotspot is full: held until a slot frees up. */
   over_limit: boolean;
+  /** Its data allowance and how much of it is used, when it has one. */
+  quota: QuotaUse | null;
   group: string | null;
   egress: EgressId | null;
   effective_egress: EgressId;
@@ -574,11 +624,6 @@ export interface ConnectionStatus {
   config_sync_error: string | null;
   /** Why saved settings could not be opened when Captun started, if so. */
   settings_notice: string | null;
-  /**
-   * Why the settings OmniHub (Captun's earlier name) saved could not be
-   * brought over when Captun started with none of its own, if so.
-   */
-  earlier_settings_notice: string | null;
   /**
    * Something about the service to show while not connected: an older service
    * is being or was stopped, or another program answered in its place.

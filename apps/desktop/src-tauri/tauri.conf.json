@@ -16,7 +16,7 @@
         "label": "main",
         "title": "Captun",
         "width": 640,
-        "height": 420,
+        "height": 540,
         "minWidth": 480,
         "minHeight": 360,
         "decorations": false,

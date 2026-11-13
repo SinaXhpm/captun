@@ -401,6 +401,18 @@ async fn launch(shared: &Shared, binary: &Path, spec: &Spec) -> Result<Running, 
         .kill_on_drop(true);
     process::harden(&mut command, shared.run_as);
     crate::allow_run(binary)?;
+    // Never with the service's full rights: what it is told comes from links
+    // other people share. Run without them (tests, development), Xray gets
+    // the user's own rights either way, and the program file may be one the
+    // user cannot mark.
+    #[cfg(windows)]
+    if let Err(e) = process::lower_integrity(binary) {
+        if process::elevated() {
+            warn!(path = %binary.display(), "not running the VPN link engine (Xray): cannot mark it to run at low integrity: {e}");
+            return Err(format!("cannot limit the VPN link engine (Xray) to low rights: {e}"));
+        }
+        debug!(path = %binary.display(), "Xray runs with this process's own rights, not elevated: cannot mark it to run at low integrity: {e}");
+    }
     let mut child = command.spawn().map_err(|e| format!("cannot run {}: {e}", binary.display()))?;
     #[cfg(windows)]
     if let (Some(job), Some(handle)) = (&shared.job, child.raw_handle())

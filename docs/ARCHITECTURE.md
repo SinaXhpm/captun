@@ -7,8 +7,6 @@ HTTPS proxy, or a VPN link such as VLESS, VMess, Trojan, Shadowsocks or
 Hysteria2), with DNS control, firewall rules, bandwidth limits and opt-in TLS
 inspection.
 
-Captun was called OmniHub before (see [Taking over from OmniHub](#taking-over-from-omnihub)).
-
 ## Process model
 
 ```
@@ -50,9 +48,7 @@ Captun was called OmniHub before (see [Taking over from OmniHub](#taking-over-fr
   settings to the service, which validates them. Each change the service
   accepts (`Event::ConfigChanged`) is saved again. A file that cannot be opened
   (from another account or computer) is renamed `captun.settings.unreadable`,
-  never overwritten. The settings OmniHub saved (sealed, or plain text from
-  early versions) are taken over once and left as they were (see
-  [Taking over from OmniHub](#taking-over-from-omnihub)).
+  never overwritten.
 - **IPC** (`crates/captun-ipc`): newline-delimited JSON, protocol version 2.
   Each connection opens with a mutual proof of a 256-bit per-run token, which
   never crosses the connection (`handshake`): the GUI sends a random nonce, the
@@ -62,9 +58,16 @@ Captun was called OmniHub before (see [Taking over from OmniHub](#taking-over-fr
   all of it. So a program posing as the service learns nothing and is sent
   nothing (the GUI says another program answered), and a proof seen once does
   not work again. The service takes the pipe first, then writes the token to
-  a file only the GUI's user can read (on Windows a protected DACL of its own:
-  SYSTEM, Administrators, and the `--allow-user` account read-only; without
-  one, nobody else), and removes it on every way out but being killed. On
+  a file only the GUI's user can read, always in the service's own folder,
+  never in one of the user's, where a program of theirs could swap in a link
+  and steer what the service deletes or makes (on Windows a protected DACL of
+  its own: SYSTEM, Administrators, and the `--allow-user` account read-only,
+  without one nobody else, in the data folder `%ProgramData%\Captun`, which
+  the GUI finds as Windows has it, not from the environment, and whose file
+  the user opens by its full path without any right to the folder; on macOS
+  and Linux mode 0600, given to that user through the open file, beside the
+  socket in `/var/run/captun` or `/run/captun`), and removes it on every way
+  out but being killed. On
   Windows the pipe also carries a protected DACL (SYSTEM, Administrators,
   owner, and only the launching user's SID, without the right to create pipe
   instances), is created with `first_pipe_instance`, and rejects remote
@@ -100,7 +103,7 @@ Captun was called OmniHub before (see [Taking over from OmniHub](#taking-over-fr
 | `captun-policy` | Pure decision engine: admission (approved / quarantined / blocked), first-match rules (who × where × port × protocol × schedule, "where" being websites, address ranges and online lists together), the same rules for name lookups, egress, DNS upstream and rate-limit fallbacks (device → group → global), the three-gate TLS inspection check, and a token bucket. Reads online lists in their many formats (`lists`). |
 | `captun-sniff` | Bounds-checked parsers for the first bytes of a flow: TLS ClientHello (SNI, ALPN, ECH; reassembled across records) and HTTP/1.x `Host`. Fuzz-tested. |
 | `captun-outbound` | The `Outbound` trait and its implementations: `Direct` (pinned to an interface with `IP_UNICAST_IF` / `SO_BINDTODEVICE` / `IP_BOUND_IF`), SOCKS5 (auth + UDP ASSOCIATE), HTTP CONNECT over TCP or TLS (HTTPS proxies, certificate checked against the bundled Mozilla roots), `Block`, chaining through `via`, and `Unavailable` for egresses that must fail closed. `Direct` looks names up on the system's resolver for at most 5 s, at most 16 at once for devices' traffic and 8 more kept for the service's own connections (a proxy's server named by host, list downloads), so slow names devices ask for never hold those up (getaddrinfo cannot be stopped, so a stalled one keeps its place until it ends rather than taking more of the shared blocking threads), and `udp_session_to` opens only the socket the target's address family needs; a SOCKS5 proxy opens its relay with it, so a UDP flow through Xray holds one UDP socket, not two. `fetch` downloads a file over HTTP(S) through any of them (online lists). |
-| `captun-xray` | VPN-link egresses through a supervised [Xray-core] sidecar: turns parsed links into Xray JSON, runs the program with the config on stdin, gives every egress its own loopback SOCKS5 inbound with per-run credentials, restarts it with backoff, and scrubs secrets from its log lines. Tested end to end against the real program. |
+| `captun-xray` | VPN-link egresses through a supervised [Xray-core] sidecar: turns parsed links into Xray JSON, runs the program with the config on stdin, gives every egress its own loopback SOCKS5 inbound with per-run credentials, restarts it with backoff, and scrubs secrets from its log lines. On Windows it runs Xray at low integrity, and settings that would make Xray use files on this computer are refused (`captun_core::link::xray_settings_problem`). Tested end to end against the real program. |
 | `captun-dns` | DNS server (UDP+TCP) with blocklist, overrides, TTL-aware cache and per-device upstreams over UDP/TCP/DoT/DoH. Each query leaves the way the device's rules send its name (by default the device's own egress), so DNS never leaks around a proxy, and names the rules block are answered as blocked. |
 | `captun-engine` | The routing engine. Userspace TCP stacks (smoltcp: retransmission on timers, fast retransmit, CUBIC congestion control, resets for unknown connections), one per processor, answer every connection a device opens and UDP flows are kept in a table; a `Dispatcher` classifies each flow (admission, rules, egress), and it is relayed through the chosen egress with per-client bandwidth limits and byte accounting. UDP an egress cannot carry (a SOCKS5 proxy that answers UDP ASSOCIATE with "command not supported", which the outbound remembers for a minute, or `udp = "block"`) is refused with ICMP port unreachable rather than dropped silently, so browsers give up on QUIC at once and use HTTPS over TCP. A failed flow keeps refusing its datagrams for 5 s before the egress is tried again, and nothing ever goes out another way. A SOCKS5/HTTP-CONNECT **inbound** drives the same path for traffic that arrives already proxied (reverse tethering). Fully tested without a packet device. |
 | `captun-platform` | Hotspot backends (Windows: Mobile hotspot, falling back to the WLAN hosted network; Linux: NetworkManager, falling back to hostapd; macOS: observes the system's Internet Sharing) and interface discovery. The routing engine and capture steer by interface name, so any adapter the computer itself uses for internet (Ethernet, Wi-Fi, a VPN adapter) is a `direct` egress like any other. |
@@ -110,7 +113,7 @@ Captun was called OmniHub before (see [Taking over from OmniHub](#taking-over-fr
 | `captun-ipc` | Protocol types, framing, transport, token handling and the client used by the GUI. |
 | `captun-tls` | HTTPS inspection certificates (see [HTTPS inspection](#https-inspection)): this install's own CA, its key kept where only the service can use it (a non-exportable CNG machine key on Windows, a root-only key file on Linux and macOS), site certificates made on demand and cached (also a rustls `ResolvesServerCert`), and what devices install (PEM, DER, fingerprint, iOS profile). Nothing uses it yet. |
 | `captun-daemon` | Wires everything together: the hub state, the monitor loop, DNS lifecycle, request handling, and log forwarding to the GUI. |
-| `apps/desktop` | Tauri 2 + React GUI with its own title bar, in one dark theme taken from the logo: Home (one big start button in the logo's style, a Wi-Fi/USB switch under it, and the devices with the outbound each uses), Devices, Outbound, and Rules, DNS and Settings under More. The logo opens About: the version, links to omnihub.sinaxhpm.com and github.com/sinaxhpm/omnihub (only those pages can be opened from the GUI), and an update check against that repository's latest GitHub release. The logo, the "network helm" (a ship's wheel drawn as a network: the hub is this computer, the spokes are links, the handles are devices), lives as SVG in `apps/desktop/src-tauri/icons/source/`, written by its `generate.mjs`: a detailed master for 96 px and up, and hand-tuned drawings for 16–64 px that make up the small sizes of the Windows `.ico` and the title-bar logo. `npx tauri icon` builds the other platforms' icons from the rendered master. On Home the helm turns slowly while sharing starts and faster while it runs; it stops when the window is hidden, and every animation is off when the system asks for reduced motion. |
+| `apps/desktop` | Tauri 2 + React GUI with its own title bar, in one dark theme taken from the logo, a captain's bridge at night (a deep navy sea, brass for the helm and the accent, sailcloth-cream text, a serif for headings, the faint lines of a sea chart behind the pages): Home, kept simple (one big start button in the logo's style, what to join, a Wi-Fi/USB switch, and one line saying how many devices are connected and how many wait to be allowed, which opens Devices), Devices, Outbound, and Rules, DNS and Settings under More. The logo opens About: the version, a link to github.com/SinaXhpm/captun (only that page and its releases can be opened from the GUI), and an update check against that repository's latest GitHub release. The logo, the "network helm" (a ship's wheel drawn as a network: the hub is this computer, the spokes are links, the handles are devices), lives as SVG in `apps/desktop/src-tauri/icons/source/`, written by its `generate.mjs` (brass on a night-sea tile): a detailed master for 96 px and up, and hand-tuned drawings for 16–64 px that make up the small sizes of the Windows `.ico` and the title-bar logo. `npx tauri icon` builds the other platforms' icons from the rendered master. On Home the big button is a brass ship's wheel: while sharing turns on or off it gathers speed and turns once every 3 s, even when the system asks for reduced motion, as it is what says the app is at work; while sharing runs it keeps a calm turn (14 s) and its handles are lit. It stops when the window is hidden, and apart from that busy turn every animation is off when the system asks for reduced motion. |
 
 ## Security principles
 
@@ -131,8 +134,7 @@ Captun was called OmniHub before (see [Taking over from OmniHub](#taking-over-fr
 - **The service's own folder (Windows).** The service keeps its log, the
   online lists and the phone key in `%ProgramData%\Captun`, and by default
   every user may add files under `%ProgramData%`. So the first thing the
-  service does, before its log, the takeover from OmniHub, the settings and
-  the rest, is make that folder and its `lists` folder Captun's alone
+  service does, before its log, the settings and the rest, is make that folder and its `lists` folder Captun's alone
   (`paths::prepare_data_dir`). A missing one is made with its owner
   (Administrators) and permissions (SYSTEM and Administrators only, nothing
   from the folder above) in the call that creates it. One already there is
@@ -314,9 +316,11 @@ the packets taken ("3 dropped so far").
 The engine then applies `PolicyEngine::decide` per flow, sniffs SNI/Host for
 domain rules (or takes the name the device's own lookups last gave the
 address), dials the client's egress, holds each direction to the device's
-speed limit with a token bucket (TCP waits for it; UDP datagrams over it are
-dropped), and records bytes in the `TrafficMeter`. A change of settings applies
+speed limit and to the one on all devices together (`network.limit`), each a
+token bucket (TCP waits for the tighter; a UDP datagram over either is dropped
+and charged to neither), and records bytes in the `TrafficMeter`. A change of settings applies
 to connections already open, not just new ones (`FlowControl`):
+
 
 - A change to one device's own settings ends only that device's connections
   (`reset_devices`), and only when it changes what decides them: letting it
@@ -335,6 +339,9 @@ to connections already open, not just new ones (`FlowControl`):
   the last reset of everything, and each device's), so two resets in a row
   both take effect, and a flow that learns its device after that device's
   reset (while its name was still being sniffed) still ends.
+- A device's data allowance used up, or started over, ends that device's
+  connections, so they reconnect cut off, slowed or back to normal (see
+  *Data use and allowances* below).
 - Time windows, the device limit and Xray are checked again on open
   connections (`recheck_all`): the monitor looks every 2 s, first thing in
   its tick, and asks when a rule's window opens or closes (the clock is
@@ -356,6 +363,40 @@ to connections already open, not just new ones (`FlowControl`):
 Both capture paths need validation on real hotspot hardware; the OS commands
 and filters are built by pure, unit-tested functions and reverted when the
 engine stops.
+
+### Data use and allowances
+
+The service reads every device's counters in the `TrafficMeter` every 5 s
+(`captun-daemon/src/usage.rs`) and counts what moved since the last reading
+in two places:
+
+- **Per hour, for the Usage page.** Local hours (a half-hour time zone and a
+  change of clocks come out right: the minutes and seconds the local clock
+  shows are taken off), one JSON file per local day in the data folder's
+  `usage` folder, today's held in memory and saved every minute and on
+  shutdown, days past 400 deleted. `GetUsage` takes the bounds of the
+  stretches asked about (local midnights or hours, worked out by the app) and
+  answers what was used in each and by each device; an hour counts where it
+  starts.
+- **Per period, for allowances** (`Quota`: MB of 1,048,576 bytes, download
+  and upload together, per day, week from `network.week_starts`, month, or in
+  total). Each device keeps what it used in the current day, week and month
+  and since its last reset by hand (`allowances.json`), so an allowance that
+  changes period applies at once. A device's allowance is its own, else its
+  group's, else `network.device_quota` (`Config::quota_for`); each device
+  counts its own use. Devices that used nothing for 62 days are forgotten
+  unless their allowance never starts over.
+
+A device over its allowance goes into `Hub::over_quota`, which the policy
+takes (`PolicyEngine::with_over_quota`): without `then_kbps` its admission
+becomes `OverQuota` (no internet; a block still outranks it), with it its
+speed limit becomes the tighter of its own and that speed. The service checks
+on every reading, so a device is held at most about 5 s late; a change ends
+its connections. `ResetQuota` starts the current period over and
+`AddQuota` gives extra for it only. Like the speed limits, allowances work
+while traffic goes through the engine (`transparent_routing`), and they go by
+the device's hardware address: a phone that makes up a new one gets a new
+allowance (a sign-in page with accounts closes that gap).
 
 ### Holding the line
 
@@ -619,7 +660,11 @@ What keeps every flow on the device's own outbound, or nowhere:
   packet at 1000 connections before, 26–51 µs after; at 4000 connections
   730–900 µs before (with the cap raised to allow them), 19–33 µs after.
 - A device's speed limit is one token bucket per direction shared by all its
-  flows (`TrafficMeter::bucket`), not one per flow.
+  flows (`TrafficMeter::bucket`), not one per flow. The limit on all devices
+  together is one more bucket per direction, shared by every flow, which each
+  flow's pacing handle reads as it goes, so a new limit reaches connections
+  already open (`TrafficMeter::set_total_limit`, called at start and on every
+  save). It is set in Settings, General; a device's own on the Devices page.
 - UDP answers are taken only from the flow's destination, so nothing else that
   finds the socket can pose as it.
 - Rules with address ranges are compiled into sorted, merged ranges and
@@ -866,8 +911,6 @@ The key checked or made is held open for the rest of the run, and a phone
 command that waits over 20 s for another one's check gives up rather than
 queue behind a stuck one. On Linux and macOS it is created `0600` in a folder
 only root can change.
-The key OmniHub made is taken over only through these same checks (see
-[Taking over from OmniHub](#taking-over-from-omnihub)).
 
 Known limits: the key relies on the service making `%ProgramData%\Captun`
 Captun's alone as it starts (see [Security principles](#security-principles)),
@@ -1222,9 +1265,19 @@ review of the key path and the terminator.
    access point is up (see "Holding the line").
 5. **VPN links (done):** the Xray sidecar above, share-link parsing for every
    proxy and VPN-link scheme, HTTPS proxies, and release bundling
-   (`scripts/release.mjs`). Still to do: run Xray with a restricted token on
-   Windows (it currently inherits the service's rights), and reach a VPN link's
-   server through another egress (`via` for VPN links).
+   (`scripts/release.mjs`). On Windows Xray runs at low integrity: the
+   service marks its program file with a low mandatory label before every
+   start (an elevated service that cannot do so does not start Xray; an
+   unelevated run, as in tests, goes on without it, its Xray having only the
+   user's rights), and a process gets the lower of its parent's level and its
+   program file's, so whatever its settings say it can write almost nothing. Settings
+   that make it use files (`certificateFile`, `keyFile`, `masterKeyLog`, at any
+   depth and in any case, and network or device paths) are refused in links'
+   xhttp `extra` and in outbound files alike
+   (`captun_core::link::xray_settings_problem`), as it can still read what the
+   service can, and a network path would make Windows sign in to it as the
+   user. Still to do: reach a VPN link's server through another egress (`via`
+   for VPN links).
 6. **TLS inspection** (see [HTTPS inspection](#https-inspection); the
    per-install CA with its key in the OS key store, and leaf certificates
    made on the fly, are done in `captun-tls`): the consent portal with CA
@@ -1235,72 +1288,6 @@ review of the key path and the terminator.
    and the platform pieces exist — admin prompt, `/var/run` paths, Internet
    Sharing observer, pf-based cable sharing — but nothing has run on a Mac
    yet), then Android (root).
-
-## Taking over from OmniHub
-
-Captun was called OmniHub before, and a copy from then keeps its data under
-that name. Captun takes it over once, while it has none of its own, and never
-changes, moves or deletes anything of OmniHub's. Only plain files and folders
-are read: never through a link, a junction or another reparse point. The
-service logs one line for each item it takes over or refuses; the app shows on
-screen why OmniHub's settings could not be brought over, if they could not.
-
-- **Settings** (the app, `apps/desktop/src-tauri/src/settings.rs`): when
-  Captun has no settings yet (none saved, none set aside as unreadable), it
-  copies `omnihub.settings` from `%LOCALAPPDATA%\OmniHub` (or from next to the
-  program) to `%LOCALAPPDATA%\Captun\captun.settings` and uses that copy from
-  then on. The same user's DPAPI opens it: Captun opens files sealed with
-  OmniHub's header and DPAPI entropy, and seals its own with new ones. On
-  macOS and Linux (`~/Library/Application Support/OmniHub`,
-  `~/.config/omnihub`) the `settings.key` they were sealed with comes along,
-  owner-only, unless Captun has another key already. Plain-text `omnihub.toml`
-  from early OmniHub versions is read and saved encrypted the same way. When
-  they cannot be brought over (a link instead of a file, damaged, another key
-  in the way), a warning says why and where they are, Captun starts with fresh
-  settings, and it tries again at the next start until it saves its own.
-- **A running OmniHub service:** it listens under its old name
-  (`\\.\pipe\omnihub`, `/run/omnihub/omnihub.sock`,
-  `/var/run/omnihub/omnihub.sock`), so Captun cannot ask it to stop the way it
-  stops an older Captun service, and removing OmniHub closes its app, not its
-  service. Before the app starts the service, and again as the service starts,
-  Captun looks for it there (`Endpoint::is_in_use`: on Windows the pipe is not
-  even opened; on Unix a connection is opened and closed at once). While it
-  runs, Captun's service does not start, and the app says to restart the
-  computer or end `omnihub-daemon`. So the two never fight over the hotspot,
-  and Captun never lifts the rules of an OmniHub that is still running.
-- **Saved online lists** (the service, `crates/captun-daemon/src/migrate.rs`):
-  at start, once Captun's own folder is locked down (see
-  [Security principles](#security-principles)), while its lists folder holds
-  no list, the lists in
-  `%ProgramData%\OmniHub\lists` (`/var/lib/omnihub/lists`,
-  `/Library/Application Support/OmniHub/lists`) are copied: only files named
-  like a saved list that start with OmniHub's list header and whose link
-  matches their name. They are saved with Captun's header.
-- **Phone key** (the service): while there is no `adbkey` in
-  `%ProgramData%\Captun`, the one in `%ProgramData%\OmniHub` is used only
-  through `captun_adb::take_over_key`: its folder and the key itself must pass
-  the checks Captun's own key passes (owned by SYSTEM or Administrators,
-  readable only by them, a whole key, checked on the file held open), and it is
-  then written to a new key file made private from the start, like a new key.
-  A key that fails is left where it is and a new one is made when a phone needs
-  it, so a planted key is never adopted. Phones that allowed OmniHub keep
-  allowing Captun.
-- **Leftovers:** where Captun lifts what a run that stopped abruptly left
-  behind, it lifts OmniHub's too: the "OmniHub devices" firewall rules at
-  service start, the `OmniHub-DHCP-<network>` firewall rule and the
-  `OmniHub-<network>` WinNAT before cable sharing puts its own in (WinNAT
-  refuses a second NAT for the same addresses), the "OmniHub Reverse Tether
-  <port>" rule when USB to phone stops, and the `OMNIHUB-*` iptables chains on
-  Linux.
-- **Installer:** an OmniHub installed for this user only stops the install
-  (see [Installing on Windows](#installing-on-windows)).
-
-Not taken over: the plain config file a service run by hand keeps
-(`%ProgramData%\OmniHub\omnihub.toml`), the service's log, and an OmniHub
-installed for all users, which stays installed until it is removed in
-Settings > Apps. The website and the GitHub repository keep the old name for
-now, so the About links and the update check still point at
-`sinaxhpm/omnihub`.
 
 ## Development
 
@@ -1342,17 +1329,16 @@ of it, for a folder chosen by hand too:
   failure there only warns. The uninstaller first asks to close Captun if
   it is running, then removes that driver and its certificate
   (`--remove-usb-driver`) before anything else.
-- **OmniHub (Captun's earlier name) or an older Captun installed for this
-  user only** (Tauri's default before) stops the install with a request to
-  remove it in Settings > Apps first. Such a copy is found by its entry in
-  Installed apps, `HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\`
-  followed by `OmniHub` or `Captun`, which Tauri's installer writes for a copy
-  installed for one user. Its uninstaller is not run from the elevated
+- **An older Captun installed for this user only** (Tauri's default
+  before) stops the install with a request to remove it in Settings > Apps
+  first. Such a copy is found by its entry in Installed apps,
+  `HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\Captun`, which
+  Tauri's installer writes for a copy installed for one user. Its uninstaller is not run from the elevated
   installer: any program of the user could have replaced it. An entry whose
   uninstaller is gone (its folder was deleted by hand) cannot be removed in
   Settings either, so it is ignored and left as it is. The settings
-  stay in `%LOCALAPPDATA%\OmniHub` or `%LOCALAPPDATA%\Captun`, where an
-  all-users Captun keeps or takes them over.
+  stay in `%LOCALAPPDATA%\Captun`, where an all-users Captun keeps using
+  them.
 - Only this installer is built (`tauri.windows.conf.json`): Tauri's MSI would
   let any folder be chosen without these checks.
 

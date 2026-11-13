@@ -3,6 +3,7 @@ import { Ban, Check, Laptop, Pencil, Search, Trash2, Users } from "lucide-react"
 import { api } from "../api";
 import { deviceAddress, deviceName, egressLabel, egressName, profileFor, usableEgresses } from "../configUtils";
 import { AddressChip } from "../components/AddressChip";
+import { QuotaFields, describeQuota, describeUse, formToQuota, quotaToForm } from "../components/QuotaFields";
 import { Empty, EmptyState, Field, Pill, Toggle } from "../components/Form";
 import { ConfirmDialog, Modal } from "../components/Modal";
 import { formatAgo, formatBytes, formatKbps, formatRate } from "../format";
@@ -98,6 +99,20 @@ export function Clients() {
                   <div className="cell-main">
                     {deviceName(c)}
                     {c.state !== "approved" && <Pill tone={STATE_TONE[c.state]}>{STATE_LABEL[c.state]}</Pill>}
+                    {(c.limit?.down_kbps != null || c.limit?.up_kbps != null) && (
+                      <span className="tag" title={`Speed limit: down ${formatKbps(c.limit?.down_kbps)}, up ${formatKbps(c.limit?.up_kbps)}`}>
+                        speed limit
+                      </span>
+                    )}
+                    {c.quota && (
+                      <span className={c.quota.over ? "tag tag-warn" : "tag"} title={`Data allowance: ${describeQuota(c.quota.quota)}. ${describeUse(c.quota)}`}>
+                        {c.quota.over
+                          ? c.quota.quota.then_kbps != null
+                            ? "allowance used: slowed"
+                            : "allowance used up"
+                          : `${formatBytes(c.quota.used)} of ${formatBytes(c.quota.allowed)}`}
+                      </span>
+                    )}
                     {c.online && c.over_limit && (
                       <span className="tag tag-warn" title="The hotspot is at its device limit; this device waits for a free slot.">
                         hotspot full
@@ -194,6 +209,29 @@ function DataUsed({ mac, listed }: { mac: MacAddr; listed: TrafficStats }) {
 }
 
 /**
+ * How a device's data allowance stands, from the latest device list, with a
+ * way to start it over or give it more for now.
+ */
+function AllowanceNow({ mac }: { mac: MacAddr }) {
+  const { run } = useServiceCore();
+  const use = useClients().find((c) => c.mac === mac)?.quota;
+  if (!use) return <>—</>;
+  return (
+    <span className="allowance">
+      <span className={use.over ? "allowance-text allowance-over" : "allowance-text"}>{describeUse(use)}</span>
+      <span className="allowance-actions">
+        <button className="link-button" onClick={() => void run(() => api.addQuota(mac, 1024), "Could not give more", "1 GB more for now")}>
+          Add 1 GB
+        </button>
+        <button className="link-button" onClick={() => void run(() => api.resetQuota(mac), "Could not start it over", "Allowance started over")}>
+          Start over
+        </button>
+      </span>
+    </span>
+  );
+}
+
+/**
  * This computer's address on the hotspot and what devices may reach, with a
  * way to change it: the addresses here are what devices use to find each
  * other and this computer.
@@ -235,6 +273,7 @@ function ClientEditor({ view, config, onClose }: { view: ClientView; config: Con
   const [group, setGroup] = useState(base.group ?? "");
   const [egress, setEgress] = useState(base.egress ?? "");
   const [dns, setDns] = useState(base.dns_upstream ?? "");
+  const [quotaForm, setQuotaForm] = useState(() => quotaToForm(base.quota));
   const [down, setDown] = useState(base.limit?.down_kbps?.toString() ?? "");
   const [up, setUp] = useState(base.limit?.up_kbps?.toString() ?? "");
   const [inspect, setInspect] = useState(base.inspect_tls);
@@ -243,6 +282,8 @@ function ClientEditor({ view, config, onClose }: { view: ClientView; config: Con
   const groupConfig = config.group?.find((g) => g.id === group);
   const inheritedEgress = groupConfig?.egress ?? config.network.default_egress;
   const inheritedDns = groupConfig?.dns_upstream ?? config.dns.default_upstream;
+  const inheritedQuota = groupConfig?.quota ?? config.network.device_quota;
+  const quota = formToQuota(quotaForm);
   const limitError = [down, up].some((v) => v.trim() !== "" && !(Number(v) > 0 && Number.isInteger(Number(v))))
     ? "Limits must be whole numbers above 0 (leave empty for unlimited)."
     : null;
@@ -262,6 +303,7 @@ function ClientEditor({ view, config, onClose }: { view: ClientView; config: Con
       group: opt(group),
       egress: opt(egress),
       dns_upstream: opt(dns),
+      quota: quota.quota,
       limit: downKbps !== undefined || upKbps !== undefined ? { down_kbps: downKbps, up_kbps: upKbps } : undefined,
       inspect_tls: inspect,
     };
@@ -279,7 +321,11 @@ function ClientEditor({ view, config, onClose }: { view: ClientView; config: Con
           <button className="button" onClick={onClose}>
             Cancel
           </button>
-          <button className="button button-primary" disabled={saving || !!limitError || !!aliasError || egressOff} onClick={() => void save()}>
+          <button
+            className="button button-primary"
+            disabled={saving || !!limitError || !!aliasError || egressOff || !!quota.error}
+            onClick={() => void save()}
+          >
             Save
           </button>
         </>
@@ -301,6 +347,14 @@ function ClientEditor({ view, config, onClose }: { view: ClientView; config: Con
         <dd>
           <DataUsed mac={view.mac} listed={view.traffic} />
         </dd>
+        {view.quota && (
+          <>
+            <dt>Allowance</dt>
+            <dd>
+              <AllowanceNow mac={view.mac} />
+            </dd>
+          </>
+        )}
         <dt>Seen</dt>
         <dd>{view.online ? "online now" : formatAgo(view.last_seen_ms)}</dd>
       </dl>
@@ -343,6 +397,16 @@ function ClientEditor({ view, config, onClose }: { view: ClientView; config: Con
             ))}
           </select>
         </Field>
+        <QuotaFields
+          form={quotaForm}
+          onChange={setQuotaForm}
+          error={quota.error}
+          inherited={
+            inheritedQuota
+              ? `Empty: ${describeQuota(inheritedQuota)}, as ${groupConfig?.quota ? "its group has" : "every device has"}.`
+              : "Empty: unlimited."
+          }
+        />
         <Field label="Download speed limit (kbit/s)" error={limitError} hint={formatKbps(optNumber(down))}>
           <input inputMode="numeric" value={down} onChange={(e) => setDown(e.target.value)} placeholder="Unlimited" />
         </Field>

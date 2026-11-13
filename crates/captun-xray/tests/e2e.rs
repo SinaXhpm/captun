@@ -51,9 +51,16 @@ fn reachable_copy(program: PathBuf) -> PathBuf {
     copy
 }
 
+/// On Windows the sidecar marks the program to run at low integrity, which
+/// takes WRITE_OWNER on the file: a copy in the user's own temp folder lets
+/// this test run Xray as the service does.
 #[cfg(not(unix))]
 fn reachable_copy(program: PathBuf) -> PathBuf {
-    program
+    let dir = std::env::temp_dir().join(format!("captun-xray-e2e-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let copy = dir.join("xray.exe");
+    std::fs::copy(&program, &copy).unwrap();
+    copy
 }
 
 fn free_port() -> u16 {

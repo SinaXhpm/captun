@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ComponentType, type KeyboardEvent } from "react";
 import {
+  BarChart3,
   ChevronDown,
   Globe,
   House,
@@ -20,6 +21,7 @@ import { Dns } from "./pages/Dns";
 import { Egresses } from "./pages/Egresses";
 import { Home } from "./pages/Home";
 import { Rules } from "./pages/Rules";
+import { Usage } from "./pages/Usage";
 import { Settings } from "./pages/Settings";
 
 interface Page {
@@ -33,6 +35,7 @@ interface Page {
 const MAIN: Page[] = [
   { id: "home", label: "Home", icon: House, view: Home },
   { id: "clients", label: "Devices", icon: Users, view: Clients },
+  { id: "usage", label: "Usage", icon: BarChart3, view: Usage },
   { id: "egresses", label: "Outbound", icon: Route, view: Egresses },
 ];
 
@@ -143,8 +146,9 @@ export function App() {
             <span className="brand-text">Captun</span>
           </button>
           <nav className="topnav" aria-label="Main">
-            {/* In a narrow window only the icons show: the label stays for
-                screen readers and the title gives a hover hint. */}
+            {/* In a narrow window only the open page shows its name: the
+                others keep theirs for screen readers, and the title gives a
+                hover hint. */}
             {MAIN.map(({ id, label, icon: Icon }) => (
               <button
                 key={id}

@@ -11,8 +11,9 @@ use captun_core::{
     config::{HotspotConfig, WifiBand},
 };
 use windows::{
+    Devices::WiFi::WiFiAdapter,
     Networking::{
-        Connectivity::NetworkInformation,
+        Connectivity::{NetworkAdapter, NetworkInformation},
         HostNameType,
         NetworkOperators::{
             NetworkOperatorTetheringManager, TetheringCapability, TetheringOperationStatus, TetheringOperationalState,
@@ -146,6 +147,67 @@ fn manager() -> Result<NetworkOperatorTetheringManager, HotspotError> {
     }))
 }
 
+/// The tethering manager that hosts the Mobile hotspot on the Wi-Fi adapter
+/// `wanted`, sharing the internet connection (or, without one, any
+/// connection). Not hosting it there is a refusal, never a reason to try the
+/// hosted network, which would pick an adapter of its own.
+fn manager_on(wanted: &str) -> Result<NetworkOperatorTetheringManager, HotspotError> {
+    let adapter = wifi_adapter(wanted)?;
+    let refused = |e: windows::core::Error| {
+        HotspotError::Failed(format!(
+            "Windows cannot host its Mobile hotspot on the Wi-Fi adapter \"{wanted}\" ({}). Pick another adapter in the hotspot settings, or Automatic",
+            e.message()
+        ))
+    };
+    if let Ok(profile) = NetworkInformation::GetInternetConnectionProfile() {
+        return NetworkOperatorTetheringManager::CreateFromConnectionProfileWithTargetAdapter(&profile, &adapter).map_err(refused);
+    }
+    let profiles = NetworkInformation::GetConnectionProfiles()
+        .map_err(|e| HotspotError::Failed(format!("cannot list network connections ({})", e.message())))?;
+    let mut last = None;
+    for profile in &profiles {
+        match NetworkOperatorTetheringManager::CreateFromConnectionProfileWithTargetAdapter(&profile, &adapter) {
+            Ok(mgr) => return Ok(mgr),
+            Err(e) => last = Some(e),
+        }
+    }
+    Err(last.map(refused).unwrap_or_else(|| {
+        HotspotError::Failed("Mobile hotspot needs a network connection to share, and there is none".into())
+    }))
+}
+
+/// The Wi-Fi adapter `wanted` names (its name in the adapter list, or its
+/// system name), as Windows' tethering API takes it.
+fn wifi_adapter(wanted: &str) -> Result<NetworkAdapter, HotspotError> {
+    let not_found = || {
+        HotspotError::InvalidConfig(format!(
+            "the Wi-Fi adapter \"{wanted}\" was not found: it may be turned off or unplugged. Turn it on, or pick another adapter (or Automatic) in the hotspot settings"
+        ))
+    };
+    let id = iface::list()
+        .into_iter()
+        .find(|i| i.name.eq_ignore_ascii_case(wanted) || i.system_name.eq_ignore_ascii_case(wanted))
+        .map(|i| i.system_name)
+        .ok_or_else(not_found)?;
+    let adapters = WiFiAdapter::FindAllAdaptersAsync()
+        .and_then(|op| op.get())
+        .map_err(|e| HotspotError::Failed(format!("cannot list the Wi-Fi adapters ({})", e.message())))?;
+    for adapter in &adapters {
+        let Ok(network) = adapter.NetworkAdapter() else { continue };
+        if network.NetworkAdapterId().is_ok_and(|guid| same_guid(&guid, &id)) {
+            return Ok(network);
+        }
+    }
+    Err(not_found())
+}
+
+/// Whether `text` (`{GUID}` as the adapter list gives it, braces or not)
+/// is `guid`.
+fn same_guid(guid: &windows::core::GUID, text: &str) -> bool {
+    let text = text.trim().trim_start_matches('{').trim_end_matches('}');
+    format!("{guid:?}").eq_ignore_ascii_case(text)
+}
+
 /// Why Windows will not host a Mobile hotspot here, when it says so up front.
 /// Without an internet connection there is nothing to ask about; starting
 /// then fails with its own message.
@@ -262,11 +324,16 @@ impl HotspotBackend for MobileHotspot {
         let ssid = HSTRING::from(config.ssid.as_str());
         let passphrase = HSTRING::from(config.passphrase.expose());
         let band = config.band;
+        let adapter = config.interface.clone().filter(|name| !name.trim().is_empty());
         blocking(move || {
             if let Some(why) = hotspot_blocker() {
                 return Err(HotspotError::Unavailable(why.into()));
             }
-            let mgr = manager()?;
+            // An adapter of the user's choosing, or the one Windows picks.
+            let mgr = match adapter.as_deref() {
+                Some(name) => manager_on(name)?,
+                None => manager()?,
+            };
             let ap = mgr.GetCurrentAccessPointConfiguration().map_err(|e| failed("cannot read hotspot settings", e))?;
             ap.SetSsid(&ssid).map_err(|e| failed("cannot set SSID", e))?;
             ap.SetPassphrase(&passphrase).map_err(|e| failed("cannot set passphrase", e))?;
@@ -376,6 +443,15 @@ impl HotspotBackend for MobileHotspot {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_adapter_is_matched_by_its_guid_whatever_the_braces_and_case() {
+        let guid = windows::core::GUID::from_u128(0x6b29fc40_ca47_1067_b31d_00dd010662da);
+        assert!(same_guid(&guid, "{6B29FC40-CA47-1067-B31D-00DD010662DA}"));
+        assert!(same_guid(&guid, "6b29fc40-ca47-1067-b31d-00dd010662da"));
+        assert!(!same_guid(&guid, "{6B29FC40-CA47-1067-B31D-00DD010662DB}"));
+        assert!(!same_guid(&guid, "Wi-Fi"));
+    }
 
     #[test]
     fn the_mobile_hotspots_network_is_known_before_it_starts() {

@@ -37,6 +37,9 @@
     "allow-get-lists",
     "allow-update-lists",
     "allow-get-rule-hits",
-    "allow-test-rules"
+    "allow-test-rules",
+    "allow-get-usage",
+    "allow-reset-quota",
+    "allow-add-quota"
   ]
 }

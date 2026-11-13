@@ -1,6 +1,9 @@
 import { useState } from "react";
-import { DeviceOutbounds } from "../components/DeviceOutbounds";
+import { ChevronRight, Users } from "lucide-react";
 import { PowerButton } from "../components/PowerButton";
+import { QuickSettings } from "../components/QuickSettings";
+import { useNav } from "../nav";
+import { useClients } from "../service";
 import { useHotspotSupport } from "../system";
 import { useHotspot } from "./Hotspot";
 import { useUsb } from "./Usb";
@@ -11,9 +14,12 @@ type ModeId = "wifi" | "usb";
 let lastMode: ModeId | null = null;
 
 /**
- * The first screen: one big button that starts or stops sharing, the way to
- * share underneath it (Wi-Fi hotspot or USB to phone), and the devices using
- * the connection with the way each goes out.
+ * The first screen, kept simple: the big wheel at the top that starts or
+ * stops sharing, the way to share (Wi-Fi hotspot or USB to phone), one line
+ * about the devices, and under it the settings people change most (the
+ * Wi-Fi name and password, the way devices go out). Everything else about
+ * the devices (each one's outbound, allowing or blocking) is on the Devices
+ * and Outbound pages.
  */
 export function Home() {
   const support = useHotspotSupport();
@@ -29,11 +35,9 @@ export function Home() {
     setChosen(id);
   };
 
-  // While sharing, the button moves beside what to join, so the devices below
-  // keep their room and the page never needs scrolling.
   return (
     <div className="home">
-      <section className={current.phase === "on" ? "hero hero-on" : "hero"} aria-label="Sharing">
+      <section className="hero" aria-label="Sharing">
         <PowerButton phase={current.phase} label={current.action?.label ?? "Wait"} title={current.action?.hint} onClick={current.action?.run} />
         <div className="hero-text">
           <h2 className="hero-status" aria-live="polite">
@@ -54,9 +58,34 @@ export function Home() {
           </div>
         </div>
       </section>
-      <DeviceOutbounds />
+      <DevicesLine sharing={wifi.phase === "on" || usb.phase === "on"} />
+      <QuickSettings wifi={mode === "wifi" && wifi.phase !== "unavailable"} onMoreWifi={wifi.settings} />
       {wifi.overlay}
       {usb.overlay}
+    </div>
+  );
+}
+
+/** How many devices are on, and how many wait to be allowed, with the way to the Devices page. */
+function DevicesLine({ sharing }: { sharing: boolean }) {
+  const nav = useNav();
+  const online = useClients().filter((c) => c.online);
+  const waiting = online.filter((c) => c.state === "pending").length;
+  if (!sharing && online.length === 0) return null;
+  return (
+    <div className="home-devices" aria-live="polite">
+      <Users size={15} aria-hidden="true" />
+      <span>
+        {online.length === 0
+          ? "No devices yet"
+          : `${online.length} ${online.length === 1 ? "device" : "devices"} connected`}
+        {waiting > 0 && <span className="home-waiting"> · {waiting} waiting to be allowed</span>}
+      </span>
+      {online.length > 0 && (
+        <button className="link-button" onClick={() => nav("clients")}>
+          See devices <ChevronRight size={13} aria-hidden="true" />
+        </button>
+      )}
     </div>
   );
 }

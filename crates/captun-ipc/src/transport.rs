@@ -31,18 +31,6 @@ impl Endpoint {
         Self(path.into())
     }
 
-    /// Where the service listened when Captun was called OmniHub. A service
-    /// from then may still be running: Captun's own name says nothing about it.
-    pub fn earlier_service() -> Self {
-        #[cfg(windows)]
-        let path = r"\\.\pipe\omnihub";
-        #[cfg(target_os = "macos")]
-        let path = "/var/run/omnihub/omnihub.sock";
-        #[cfg(all(unix, not(target_os = "macos")))]
-        let path = "/run/omnihub/omnihub.sock";
-        Self(path.into())
-    }
-
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -106,14 +94,22 @@ pub async fn connect(endpoint: &Endpoint) -> io::Result<IpcStream> {
 
 #[cfg(unix)]
 mod unix {
-    use std::{fs, io, os::unix::fs::PermissionsExt, path::Path};
+    use std::{
+        fs, io,
+        os::unix::fs::{DirBuilderExt, PermissionsExt},
+        path::Path,
+    };
 
     use tokio::net::UnixListener;
 
     pub(super) fn bind(path: &str) -> io::Result<UnixListener> {
         let path = Path::new(path);
         if let Some(dir) = path.parent() {
-            fs::create_dir_all(dir)?;
+            // Made 0755 whatever the umask (sudo and pkexec pass on the
+            // user's): the GUI's token is written here too, and nobody but
+            // root may put anything in the service's folder. A folder that
+            // is there already is left as it is.
+            fs::DirBuilder::new().recursive(true).mode(0o755).create(dir)?;
         }
         match fs::remove_file(path) {
             Ok(()) => {}

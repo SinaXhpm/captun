@@ -2,7 +2,7 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
 use captun_core::{
     ClientState, Config, EgressId, InterfaceKind, MacAddr, TargetAddr,
-    config::{ClientProfile, Protocol, RateLimit},
+    config::{ClientProfile, Protocol, Quota, RateLimit},
 };
 use serde::{Deserialize, Serialize};
 
@@ -104,6 +104,15 @@ pub enum Request {
         /// TCP when `None`.
         protocol: Option<Protocol>,
     },
+    /// Data use over time, for the Usage page: what was used between each
+    /// two neighbouring `bounds` (ms since the epoch, rising), by one device
+    /// or by all together, and what each device used over the whole span.
+    GetUsage { bounds: Vec<u64>, device: Option<MacAddr> },
+    /// Starts a device's data allowance over now: what it used so far in
+    /// this period stops counting, and any extra given for it is gone.
+    ResetQuota { mac: MacAddr },
+    /// Gives a device `mb` more megabytes for this period of its allowance.
+    AddQuota { mac: MacAddr, mb: u64 },
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -120,6 +129,7 @@ pub enum Response {
     Lists(ListsProgress),
     RuleHits(Vec<RuleHits>),
     RuleTest(Box<RuleTestResult>),
+    Usage(UsageReport),
 }
 
 /// How often one rule decided since the rules last changed.
@@ -423,6 +433,9 @@ pub struct ClientView {
     pub state: ClientState,
     /// Connected while the hotspot is at its device limit: held until a slot frees up.
     pub over_limit: bool,
+    /// Its data allowance and how much of it is used, when it has one.
+    #[serde(default)]
+    pub quota: Option<QuotaUse>,
     pub group: Option<String>,
     /// Egress pinned on the profile, if any.
     pub egress: Option<EgressId>,
@@ -468,6 +481,48 @@ pub struct DeviceTraffic {
     pub tx_bps: u64,
     /// Connections and flows open now.
     pub active_flows: u32,
+}
+
+/// A device's data allowance as it stands.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct QuotaUse {
+    /// The allowance that applies: the device's own, its group's or everyone's.
+    pub quota: Quota,
+    /// Bytes used in this period, download and upload together.
+    pub used: u64,
+    /// Bytes allowed in this period: the allowance and any extra given.
+    pub allowed: u64,
+    /// Used up: the device is cut off, or slowed (`quota.then_kbps`).
+    pub over: bool,
+    /// When the allowance starts over (ms since the epoch); `None` for one
+    /// that only starts over when reset by hand.
+    pub resets_at_ms: Option<u64>,
+}
+
+/// Download and upload, in bytes.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UsageBytes {
+    pub down: u64,
+    pub up: u64,
+}
+
+/// One device's use over a span.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DeviceUsage {
+    pub mac: MacAddr,
+    pub down: u64,
+    pub up: u64,
+}
+
+/// Data use over a span, as [`Request::GetUsage`] asks for it.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UsageReport {
+    /// What was used between each two neighbouring bounds asked about.
+    pub buckets: Vec<UsageBytes>,
+    /// What each device used over the whole span, the most first.
+    pub devices: Vec<DeviceUsage>,
+    /// The oldest use still kept (ms since the epoch), if any is.
+    pub kept_since_ms: Option<u64>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

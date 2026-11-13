@@ -1,6 +1,6 @@
-//! Per-OS details of running the Xray child: no console window on Windows,
-//! no root on Linux and macOS (the user who started Captun, else
-//! `nobody`), and dying with the service where the OS can
+//! Per-OS details of running the Xray child: no console window and low
+//! integrity on Windows, no root on Linux and macOS (the user who started
+//! Captun, else `nobody`), and dying with the service where the OS can
 //! arrange it (a kill-on-close job object on Windows, the parent-death signal
 //! on Linux).
 
@@ -64,6 +64,97 @@ pub(crate) fn harden(command: &mut Command, run_as: Option<u32>) {
     }
     #[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
     let _ = command;
+}
+
+/// Marks the program file so that Windows starts it at low integrity,
+/// whoever starts it: a new process gets the lower of its parent's level and
+/// its program file's. The service runs as an administrator; Xray started so
+/// keeps the network and can read what the service can, but can write almost
+/// nothing (no file in System32, Program Files, ProgramData or the user's
+/// folders), whatever its settings say. They are checked as well
+/// (`captun_core::link::xray_settings_problem`), as reading still works and a
+/// network path would still make Windows sign in to it as the user. The mark
+/// is the file's mandatory label: setting one no higher than the service's
+/// own level needs only WRITE_OWNER on the file, which administrators hold on
+/// Captun's program folder. It is set before every start, so a program file
+/// put in place since has it too.
+#[cfg(windows)]
+#[allow(unsafe_code)]
+pub(crate) fn lower_integrity(program: &Path) -> std::io::Result<()> {
+    use std::{
+        io,
+        os::windows::{fs::OpenOptionsExt, io::AsRawHandle},
+        ptr,
+    };
+
+    use windows_sys::Win32::{
+        Foundation::LocalFree,
+        Security::{
+            Authorization::{ConvertStringSecurityDescriptorToSecurityDescriptorW, SDDL_REVISION_1},
+            LABEL_SECURITY_INFORMATION, PSECURITY_DESCRIPTOR, SetKernelObjectSecurity,
+        },
+        Storage::FileSystem::{FILE_SHARE_DELETE, FILE_SHARE_READ, FILE_SHARE_WRITE, READ_CONTROL, WRITE_OWNER},
+    };
+
+    // Low integrity; below it, nothing may write the file itself either.
+    const LOW: &str = "S:(ML;;NW;;;LW)";
+    // The file itself, followed through any link, as that is what runs.
+    let file = std::fs::OpenOptions::new()
+        .access_mode(READ_CONTROL | WRITE_OWNER)
+        .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE)
+        .open(program)?;
+    let wide: Vec<u16> = LOW.encode_utf16().chain(std::iter::once(0)).collect();
+    let mut descriptor: PSECURITY_DESCRIPTOR = ptr::null_mut();
+    // SAFETY: `wide` is NUL-terminated and outlives the call, which allocates
+    // the descriptor with LocalAlloc on success.
+    let made = unsafe {
+        ConvertStringSecurityDescriptorToSecurityDescriptorW(wide.as_ptr(), SDDL_REVISION_1, &mut descriptor, ptr::null_mut())
+    };
+    if made == 0 {
+        return Err(io::Error::last_os_error());
+    }
+    // SAFETY: a handle opened with WRITE_OWNER, borrowed for the call, and the
+    // valid descriptor made above, which the call copies.
+    let set = unsafe { SetKernelObjectSecurity(file.as_raw_handle(), LABEL_SECURITY_INFORMATION, descriptor) };
+    let result = if set == 0 { Err(io::Error::last_os_error()) } else { Ok(()) };
+    // SAFETY: allocated above by ConvertStringSecurityDescriptorToSecurityDescriptorW,
+    // and freed once.
+    unsafe { LocalFree(descriptor) };
+    result
+}
+
+/// Whether this process has an administrator's full rights (UAC-elevated,
+/// as the service is) or SYSTEM's. Not knowing counts as yes.
+#[cfg(windows)]
+#[allow(unsafe_code)]
+pub(crate) fn elevated() -> bool {
+    use windows_sys::Win32::{
+        Foundation::{CloseHandle, HANDLE},
+        Security::{GetTokenInformation, TOKEN_ELEVATION, TOKEN_QUERY, TokenElevation},
+        System::Threading::{GetCurrentProcess, OpenProcessToken},
+    };
+
+    let mut token: HANDLE = std::ptr::null_mut();
+    // SAFETY: this process's pseudo-handle, and an out-pointer to a live local.
+    if unsafe { OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token) } == 0 {
+        return true;
+    }
+    let mut elevation = TOKEN_ELEVATION { TokenIsElevated: 0 };
+    let mut written = 0u32;
+    // SAFETY: a token opened for query, and a live TOKEN_ELEVATION whose exact
+    // size is passed.
+    let ok = unsafe {
+        GetTokenInformation(
+            token,
+            TokenElevation,
+            (&mut elevation as *mut TOKEN_ELEVATION).cast(),
+            std::mem::size_of::<TOKEN_ELEVATION>() as u32,
+            &mut written,
+        )
+    };
+    // SAFETY: opened above, and closed once.
+    unsafe { CloseHandle(token) };
+    ok == 0 || elevation.TokenIsElevated != 0
 }
 
 /// Checks that only an administrator can have put the program there: a
@@ -155,5 +246,36 @@ mod job {
             // SAFETY: the handle came from CreateJobObjectW and is closed once.
             unsafe { CloseHandle(self.0) };
         }
+    }
+}
+
+#[cfg(all(test, windows))]
+mod tests {
+    use std::path::PathBuf;
+
+    use super::*;
+
+    /// A copy of `whoami.exe`, marked, says it runs at low integrity, whatever
+    /// the level of the test that starts it.
+    #[test]
+    fn a_marked_program_starts_at_low_integrity() {
+        let windows = std::env::var_os("SystemRoot").map_or_else(|| PathBuf::from(r"C:\Windows"), PathBuf::from);
+        let dir = std::env::temp_dir().join(format!("captun-xray-low-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let program = dir.join("whoami.exe");
+        std::fs::copy(windows.join("System32").join("whoami.exe"), &program).unwrap();
+
+        lower_integrity(&program).unwrap();
+        lower_integrity(&program).unwrap();
+        let out = std::process::Command::new(&program).arg("/groups").output().unwrap();
+        let groups = String::from_utf8_lossy(&out.stdout);
+        // The levels' SIDs, which read the same in every language: low,
+        // medium, high, system.
+        assert!(groups.contains("S-1-16-4096"), "not at low integrity:\n{groups}");
+        for higher in ["S-1-16-8192", "S-1-16-12288", "S-1-16-16384"] {
+            assert!(!groups.contains(higher), "{higher}:\n{groups}");
+        }
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }

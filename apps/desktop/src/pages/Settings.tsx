@@ -3,6 +3,7 @@ import { Cable, CircleAlert, CircleCheck, Info, Pencil, Plus, ShieldAlert, Trash
 import { adapterDetails, egressLabel, egressName, groupReferences, sameAdapter, sortAdapters, usableEgresses } from "../configUtils";
 import { api, errorMessage } from "../api";
 import { AddressChip } from "../components/AddressChip";
+import { QuotaFields, describeQuota, formToQuota, quotaToForm } from "../components/QuotaFields";
 import { Card, Empty, Field, Pill, SubTabs, Toggle } from "../components/Form";
 import { ConfirmDialog, Modal } from "../components/Modal";
 import { useToast } from "../components/Toast";
@@ -17,6 +18,7 @@ import type {
   PortalConfig,
   ServiceStatus,
   TlsInspectionConfig,
+  Weekday,
 } from "../types";
 import { lines, opt, optList, optNumber } from "../validation";
 
@@ -54,6 +56,10 @@ export function Settings() {
     <div className="page">
       <SubTabs label="Settings sections" tabs={SECTIONS} value={section} onChange={open} />
       {section === "general" && <NetworkSection key={JSON.stringify(config.network)} config={config} />}
+      {section === "general" && <SpeedLimitSection key={JSON.stringify(config.network.limit ?? null)} config={config} />}
+      {section === "general" && (
+        <AllowanceSection key={JSON.stringify([config.network.device_quota ?? null, config.network.week_starts ?? "mon"])} config={config} />
+      )}
       {section === "access" && <LocalAccessSection key={JSON.stringify(config.network)} config={config} />}
       {section === "cable" && <AccessNetworkSection key={JSON.stringify(config.access_network)} config={config} />}
       {section === "groups" && <GroupsSection config={config} />}
@@ -204,6 +210,102 @@ function NetworkSection({ config }: { config: Config }) {
           onChange={(v) => set("transparent_routing", v)}
         />
       </div>
+    </Card>
+  );
+}
+
+/**
+ * The speed limit on all devices together, shared by all of them; a device's
+ * own limit is set where the device is edited, on the Devices page.
+ */
+function SpeedLimitSection({ config }: { config: Config }) {
+  const { saveConfig } = useServiceCore();
+  const saved = config.network.limit ?? null;
+  const [down, setDown] = useState(saved?.down_kbps?.toString() ?? "");
+  const [up, setUp] = useState(saved?.up_kbps?.toString() ?? "");
+  const error = [down, up].some((v) => v.trim() !== "" && !(Number(v) > 0 && Number.isInteger(Number(v))))
+    ? "Limits must be whole numbers above 0 (leave empty for unlimited)."
+    : undefined;
+  const downKbps = optNumber(down);
+  const upKbps = optNumber(up);
+  const dirty = downKbps !== (saved?.down_kbps ?? undefined) || upKbps !== (saved?.up_kbps ?? undefined);
+  // Only the limit is written, so other settings changed meanwhile stay.
+  const save = () =>
+    saveConfig((c) => {
+      if (downKbps === undefined && upKbps === undefined) delete c.network.limit;
+      else c.network.limit = { down_kbps: downKbps, up_kbps: upKbps };
+    }, downKbps === undefined && upKbps === undefined ? "Speed limit removed" : "Speed limit saved");
+
+  return (
+    <Card title="Speed limit for all devices" actions={<SaveButton dirty={dirty} disabled={!!error} onSave={save} />}>
+      <p className="muted card-intro">
+        Shared by every device together. A device can also have a limit of its own: edit it on the Devices page.
+      </p>
+      <div className="form-grid">
+        <Field label="Download (kbit/s)" error={error} hint={formatKbps(downKbps)}>
+          <input inputMode="numeric" value={down} onChange={(e) => setDown(e.target.value)} placeholder="Unlimited" />
+        </Field>
+        <Field label="Upload (kbit/s)" hint={formatKbps(upKbps)}>
+          <input inputMode="numeric" value={up} onChange={(e) => setUp(e.target.value)} placeholder="Unlimited" />
+        </Field>
+      </div>
+      {!config.network.transparent_routing && (
+        <p className="muted small">Speed limits work while devices are routed through Captun (the switch above).</p>
+      )}
+    </Card>
+  );
+}
+
+const WEEKDAY_NAME: Record<Weekday, string> = {
+  mon: "Monday",
+  tue: "Tuesday",
+  wed: "Wednesday",
+  thu: "Thursday",
+  fri: "Friday",
+  sat: "Saturday",
+  sun: "Sunday",
+};
+
+/**
+ * The data allowance every device gets unless it has its own or its group's,
+ * and the day weekly allowances start over on. Each device counts its own use.
+ */
+function AllowanceSection({ config }: { config: Config }) {
+  const { saveConfig } = useServiceCore();
+  const savedWeek = config.network.week_starts ?? "mon";
+  const [form, setForm] = useState(() => quotaToForm(config.network.device_quota));
+  const [week, setWeek] = useState<Weekday>(savedWeek);
+  const quota = formToQuota(form);
+  const dirty = JSON.stringify(quota.quota ?? null) !== JSON.stringify(config.network.device_quota ?? null) || week !== savedWeek;
+  // Only these two are written, so other settings changed meanwhile stay.
+  const save = () =>
+    saveConfig((c) => {
+      if (quota.quota) c.network.device_quota = quota.quota;
+      else delete c.network.device_quota;
+      c.network.week_starts = week;
+    }, quota.quota ? `Each device now gets ${describeQuota(quota.quota)}` : "Devices have no data allowance now");
+
+  return (
+    <Card title="Data allowance for each device" actions={<SaveButton dirty={dirty} disabled={!!quota.error} onSave={save} />}>
+      <p className="muted card-intro">
+        How much each device may use, counted for each device on its own. A device or a group can have an allowance of its own: edit
+        it on the Devices page or under Groups. Its use is on the Usage page.
+      </p>
+      <div className="form-grid">
+        <QuotaFields form={form} onChange={setForm} error={quota.error} />
+        <Field label="Weeks start on" hint="For allowances that start over each week.">
+          <select value={week} onChange={(e) => setWeek(e.target.value as Weekday)}>
+            {(Object.keys(WEEKDAY_NAME) as Weekday[]).map((d) => (
+              <option key={d} value={d}>
+                {WEEKDAY_NAME[d]}
+              </option>
+            ))}
+          </select>
+        </Field>
+      </div>
+      {!config.network.transparent_routing && (
+        <p className="muted small">Data allowances work while devices are routed through Captun (Devices and safety, above).</p>
+      )}
     </Card>
   );
 }
@@ -682,7 +784,7 @@ function GroupsSection({ config }: { config: Config }) {
       }
     >
       {groups.length === 0 ? (
-        <p className="muted">A group gives several devices the same outbound, DNS server and speed limit.</p>
+        <p className="muted">A group gives several devices the same outbound, DNS server, speed limit and data allowance.</p>
       ) : (
         <table className="table">
           <thead>
@@ -691,6 +793,7 @@ function GroupsSection({ config }: { config: Config }) {
               <th>Outbound</th>
               <th>DNS server</th>
               <th>Speed limit down / up</th>
+              <th>Data allowance</th>
               <th aria-label="Actions" />
             </tr>
           </thead>
@@ -706,6 +809,7 @@ function GroupsSection({ config }: { config: Config }) {
                 <td>
                   {formatKbps(g.limit?.down_kbps)} / {formatKbps(g.limit?.up_kbps)}
                 </td>
+                <td>{g.quota ? describeQuota(g.quota) : "—"}</td>
                 <td className="row-actions">
                   <button className="icon-button" aria-label={`Edit group ${g.id}`} onClick={() => setEditing(g)}>
                     <Pencil size={14} />
@@ -766,6 +870,8 @@ function GroupEditor({ initial, config, onClose }: { initial: GroupConfig | null
   const [dns, setDns] = useState(initial?.dns_upstream ?? "");
   const [down, setDown] = useState(initial?.limit?.down_kbps?.toString() ?? "");
   const [up, setUp] = useState(initial?.limit?.up_kbps?.toString() ?? "");
+  const [quotaForm, setQuotaForm] = useState(() => quotaToForm(initial?.quota));
+  const quota = formToQuota(quotaForm);
 
   const idError = initial
     ? null
@@ -788,6 +894,7 @@ function GroupEditor({ initial, config, onClose }: { initial: GroupConfig | null
       name: opt(name),
       egress: opt(egress),
       dns_upstream: opt(dns),
+      quota: quota.quota,
       limit: downKbps !== undefined || upKbps !== undefined ? { down_kbps: downKbps, up_kbps: upKbps } : undefined,
     };
     const ok = await saveConfig((c) => {
@@ -809,7 +916,7 @@ function GroupEditor({ initial, config, onClose }: { initial: GroupConfig | null
           <button className="button" onClick={onClose}>
             Cancel
           </button>
-          <button className="button button-primary" disabled={!!idError || !!limitError || egressOff} onClick={() => void save()}>
+          <button className="button button-primary" disabled={!!idError || !!limitError || egressOff || !!quota.error} onClick={() => void save()}>
             Save
           </button>
         </>
@@ -849,6 +956,12 @@ function GroupEditor({ initial, config, onClose }: { initial: GroupConfig | null
         <Field label="Upload speed limit (kbit/s)">
           <input inputMode="numeric" value={up} onChange={(e) => setUp(e.target.value)} placeholder="Unlimited" />
         </Field>
+        <QuotaFields
+          form={quotaForm}
+          onChange={setQuotaForm}
+          error={quota.error}
+          inherited={config.network.device_quota ? `Empty: ${describeQuota(config.network.device_quota)}, as every device has.` : "Empty: unlimited."}
+        />
       </div>
     </Modal>
   );

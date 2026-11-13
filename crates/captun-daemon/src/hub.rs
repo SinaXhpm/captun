@@ -440,7 +440,13 @@ pub(crate) struct Hub {
     /// Hotspot slots under `hotspot.max_clients`, and who is waiting for one.
     capacity: Mutex<Capacity>,
     over_limit: Mutex<HashSet<MacAddr>>,
-    meter: Arc<TrafficMeter>,
+    /// Each device's data use, per hour and toward its allowance
+    /// (`crate::usage`, every few seconds).
+    pub(crate) usage: Mutex<crate::usage::Usage>,
+    /// The devices that used up their data allowance, with the speed each is
+    /// slowed to (none: cut off). Taken after `over_limit` when both are.
+    pub(crate) over_quota: Mutex<HashMap<MacAddr, Option<u64>>>,
+    pub(crate) meter: Arc<TrafficMeter>,
     /// The last speed reading, taken once a second while a GUI is connected
     /// (`crate::traffic`): what the next one measures from, and the speeds
     /// the device list shows.
@@ -476,7 +482,7 @@ pub(crate) struct Hub {
     /// Ends open flows when settings change, or has them checked again when
     /// a time window or the device limit does, so the change applies to
     /// connections already open.
-    flows: FlowControl,
+    pub(crate) flows: FlowControl,
     /// Why routing devices through Captun failed to start, if it did.
     routing_error: Mutex<Option<String>>,
     /// Why cable sharing was stopped by the kill switch, until it starts again.
@@ -542,6 +548,10 @@ impl Hub {
             let interfaces = captun_platform::iface::list();
             let reach_view = ReachView::new::<SteerKey>(&[], local_access::local_reach(&config), &interfaces);
             let lists = ListStore::new(crate::paths::lists_dir());
+            // The speed limit on all devices together; `commit` keeps it current.
+            let meter = Arc::new(TrafficMeter::new());
+            let total = config.network.limit.unwrap_or_default();
+            meter.set_total_limit(total.down_kbps, total.up_kbps);
             Self {
                 awaiting_settings: AtomicBool::new(config_file.is_none()),
                 config_file,
@@ -561,7 +571,14 @@ impl Hub {
                 schedules: Mutex::new(OpenWindows::default()),
                 capacity: Mutex::new(Capacity::default()),
                 over_limit: Mutex::new(HashSet::new()),
-                meter: Arc::new(TrafficMeter::new()),
+                // Tests count in memory only, never in the service's files.
+                usage: Mutex::new(crate::usage::Usage::open(
+                    (!cfg!(test)).then(crate::paths::usage_dir),
+                    &chrono::Local,
+                    crate::usage::now_ms(),
+                )),
+                over_quota: Mutex::new(HashMap::new()),
+                meter,
                 speeds: Mutex::new(Speeds::default()),
                 backend,
                 hotspot: Mutex::new(HotspotStatus::default()),
@@ -1093,7 +1110,7 @@ impl Hub {
     }
 
     /// Compiles the rules again with the lists as they are now.
-    fn refresh_policy(&self) {
+    pub(crate) fn refresh_policy(&self) {
         // Under the capacity lock, as `commit` and `update_capacity`.
         let held = lock(&self.over_limit);
         let config = self.config();
@@ -1110,6 +1127,8 @@ impl Hub {
         if self.config().rules == config.rules {
             policy = policy.with_hits(self.policy().hits().clone());
         }
+        // The devices over their data allowance, as last counted.
+        policy = policy.with_over_quota(lock(&self.over_quota).clone());
         write(&self.policy, Arc::new(policy));
     }
 
@@ -1222,6 +1241,9 @@ impl Hub {
                 crate::engine_glue::test_rules(self, &target, device, port, protocol)
                     .map(|result| Response::RuleTest(Box::new(result)))
             }
+            Request::GetUsage { bounds, device } => self.usage_report(bounds, device).await.map(Response::Usage),
+            Request::ResetQuota { mac } => self.reset_quota(mac).map(|()| Response::Ok),
+            Request::AddQuota { mac, mb } => self.add_quota(mac, mb).map(|()| Response::Ok),
         }
     }
 
@@ -1761,6 +1783,7 @@ impl Hub {
                 alias: profile.and_then(|p| p.alias.clone()),
                 state: profile.map(|p| p.state).unwrap_or_default(),
                 over_limit: over_limit.contains(&mac),
+                quota: self.quota_use(&config, &mac),
                 group: profile.and_then(|p| p.group.clone()),
                 egress: profile.and_then(|p| p.egress.clone()),
                 effective_egress: policy.egress_for(&mac).clone(),
@@ -1826,6 +1849,9 @@ impl Hub {
         // Only now: until the swap, a rebuild for the device limit still
         // compiles the rules before, with their lists.
         self.lists.prune(&self.config());
+        // The speed limit on all devices together, for flows already open too.
+        let total = self.config().network.limit.unwrap_or_default();
+        self.meter.set_total_limit(total.down_kbps, total.up_kbps);
         // After the config swap, so a rebuild the sidecar triggers meanwhile
         // can only ever see the new config. Applying reads the outbounds'
         // Xray config files, which may take up to the 3 s it gives them all

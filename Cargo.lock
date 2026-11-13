@@ -450,6 +450,8 @@ dependencies = [
  "chrono",
  "clap",
  "ipnet",
+ "serde",
+ "serde_json",
  "tokio",
  "tracing",
  "tracing-subscriber",

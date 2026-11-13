@@ -5,25 +5,9 @@
 
 use std::path::Path;
 
-use captun_ipc::Endpoint;
-
 use crate::paths;
 
-/// What the user is told while the service of OmniHub, as Captun was called
-/// before, still runs. It listens under its old name, so Captun cannot see or
-/// stop it the way it stops an older Captun service, and the two would fight
-/// over the hotspot. Uninstalling OmniHub closes its app, not its service.
-#[cfg(windows)]
-const EARLIER_RUNNING: &str = "OmniHub, Captun's earlier version, is still running in the background. Restart the computer, or end omnihub-daemon.exe in Task Manager, then press Start.";
-#[cfg(target_os = "macos")]
-const EARLIER_RUNNING: &str = "OmniHub, Captun's earlier version, is still running in the background. Restart the Mac, or quit omnihub-daemon in Activity Monitor, then press Start.";
-#[cfg(all(unix, not(target_os = "macos")))]
-const EARLIER_RUNNING: &str = "OmniHub, Captun's earlier version, is still running in the background. Restart the computer, or stop the omnihub-daemon process, then press Start.";
-
 pub(crate) fn start_service(token_path: &Path) -> Result<(), String> {
-    if Endpoint::earlier_service().is_in_use() {
-        return Err(EARLIER_RUNNING.to_owned());
-    }
     let daemon = paths::daemon_path().map_err(|e| format!("Cannot locate the Captun executable: {e}"))?;
     if !daemon.is_file() {
         return Err(format!(

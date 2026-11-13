@@ -21,6 +21,8 @@ export interface ShareMode {
   detail?: ReactNode;
   /** Small links under the detail, such as settings. */
   links?: ReactNode;
+  /** Opens its settings, where it has any to open now. */
+  settings?: () => void;
   /** Dialogs it may open. */
   overlay?: ReactNode;
 }

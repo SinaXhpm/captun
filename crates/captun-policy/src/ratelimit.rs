@@ -50,13 +50,20 @@ impl TokenBucket {
     /// a full bucket instead. Streams pay the debt by waiting, and the debt
     /// stays bounded, so the average rate stays exact.
     pub fn try_take(&mut self, bytes: usize, now: Instant) -> bool {
-        self.refill(now);
-        let bytes = bytes as f64;
-        if self.tokens < (bytes - self.burst).min(self.burst) {
+        if !self.can_take(bytes, now) {
             return false;
         }
-        self.tokens -= bytes;
+        self.tokens -= bytes as f64;
         true
+    }
+
+    /// Whether [`try_take`](Self::try_take) would charge `bytes` now, without
+    /// charging them: for a datagram that must pass two limits, or neither
+    /// pays for it.
+    pub fn can_take(&mut self, bytes: usize, now: Instant) -> bool {
+        self.refill(now);
+        let bytes = bytes as f64;
+        self.tokens >= (bytes - self.burst).min(self.burst)
     }
 
     fn refill(&mut self, now: Instant) {

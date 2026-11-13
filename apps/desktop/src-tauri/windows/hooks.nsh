@@ -6,13 +6,6 @@
 ; folder chosen by hand too.
 
 !define CAPTUN_STOP_PER_USER "An older Captun is installed for this user only. Remove it in Settings > Apps > Installed apps, then run this installer again."
-!define CAPTUN_STOP_EARLIER_PER_USER "An older version (OmniHub) is installed for this user only. Remove it in Settings > Apps > Installed apps, then run this installer again."
-
-; Where a copy installed for one user only keeps its entry in Installed apps:
-; Tauri's installer writes HKCU\${UNINSTKEY}, which is this key with the
-; product name at the end. Captun was called OmniHub before, so a copy from
-; then is found under that name.
-!define CAPTUN_EARLIER_UNINSTKEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\OmniHub"
 !define CAPTUN_STOP_FOLDER "Choose an empty folder for Captun, or the folder it is already installed in. Only administrators will be able to change it."
 !define CAPTUN_STOP_LOCK "Captun could not make its folder changeable by administrators only, so it was not installed. Run this installer again, or choose another folder."
 !define CAPTUN_STOP_FILES "Captun could not make its files changeable by administrators only. Remove it in Settings > Apps > Installed apps, then run this installer again."
@@ -216,9 +209,6 @@
   ;    any such program could have replaced it, and this installer runs as
   ;    administrator.
   !insertmacro CAPTUN_STOP_IF_INSTALLED "${UNINSTKEY}" "${CAPTUN_STOP_PER_USER}"
-  ;    The same for OmniHub, as Captun was called before, installed for this
-  ;    user only: it would keep running from that folder beside this copy.
-  !insertmacro CAPTUN_STOP_IF_INSTALLED "${CAPTUN_EARLIER_UNINSTKEY}" "${CAPTUN_STOP_EARLIER_PER_USER}"
 
   ; 3. It must hold nothing but Captun: empty, or an earlier Captun, which
   ;    this installer gave to Administrators. A folder another account made

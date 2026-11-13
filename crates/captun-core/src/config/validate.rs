@@ -1,6 +1,6 @@
 use std::{collections::HashSet, net::IpAddr, path::Path};
 
-use super::{CONFIG_VERSION, Config, ConfigError, DnsProtocol, MAX_CLIENT_LIMIT, RateLimit, RuleAction};
+use super::{CONFIG_VERSION, Config, ConfigError, DnsProtocol, MAX_CLIENT_LIMIT, Quota, RateLimit, RuleAction};
 use crate::{
     EgressId, EgressKind, UdpPolicy,
     domain::is_valid_hostname,
@@ -90,6 +90,19 @@ pub fn validate_passphrase(passphrase: &str) -> Result<(), String> {
 fn check_limit(errors: &mut Vec<String>, who: &str, limit: &RateLimit) {
     if limit.down_kbps == Some(0) || limit.up_kbps == Some(0) {
         errors.push(format!("{who}: speed limits must be greater than 0 (omit them for unlimited)"));
+    }
+}
+
+/// Most megabytes a data allowance may give: about a petabyte, past any
+/// real need and far from overflowing when counted in bytes.
+pub const MAX_QUOTA_MB: u64 = 1_000_000_000;
+
+fn check_quota(errors: &mut Vec<String>, who: &str, quota: &Quota) {
+    if quota.mb == 0 || quota.mb > MAX_QUOTA_MB {
+        errors.push(format!("{who}: a data allowance must be between 1 MB and {MAX_QUOTA_MB} MB"));
+    }
+    if quota.then_kbps == Some(0) {
+        errors.push(format!("{who}: the speed after the data allowance is used up must be greater than 0 (omit it to cut the internet off)"));
     }
 }
 
@@ -307,6 +320,13 @@ impl Config {
             }
         }
 
+        if let Some(limit) = &self.network.limit {
+            check_limit(&mut errors, "the speed limit for all devices", limit);
+        }
+        if let Some(quota) = &self.network.device_quota {
+            check_quota(&mut errors, "the data allowance for each device", quota);
+        }
+
         let mut group_ids = HashSet::new();
         for group in &self.groups {
             let who = format!("group {:?}", group.name.as_deref().unwrap_or(&group.id));
@@ -328,6 +348,9 @@ impl Config {
             }
             if let Some(limit) = &group.limit {
                 check_limit(&mut errors, &who, limit);
+            }
+            if let Some(quota) = &group.quota {
+                check_quota(&mut errors, &who, quota);
             }
         }
 
@@ -360,6 +383,9 @@ impl Config {
             }
             if let Some(limit) = &client.limit {
                 check_limit(&mut errors, &who, limit);
+            }
+            if let Some(quota) = &client.quota {
+                check_quota(&mut errors, &who, quota);
             }
         }
 

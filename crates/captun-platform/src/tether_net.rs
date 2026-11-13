@@ -177,13 +177,6 @@ fn rule_name(port: u16) -> String {
     format!("Captun Reverse Tether {port}")
 }
 
-/// The same rule as this program named it when it was called OmniHub; one a
-/// run of it left behind is lifted with this one.
-#[cfg(any(windows, test))]
-fn earlier_rule_name(port: u16) -> String {
-    format!("OmniHub Reverse Tether {port}")
-}
-
 /// A PowerShell script, run by PowerShell's full path.
 #[cfg(any(windows, test))]
 fn ps(script: String) -> Argv {
@@ -231,11 +224,7 @@ fn windows_steps(net: &ReverseNet) -> (Vec<Step>, Vec<Argv>) {
         ))),
     ];
     let cleanup = vec![
-        ps(format!(
-            "Remove-NetFirewallRule -DisplayName '{name}' -ErrorAction SilentlyContinue; \
-             Remove-NetFirewallRule -DisplayName '{}' -ErrorAction SilentlyContinue",
-            earlier_rule_name(net.proxy_port)
-        )),
+        ps(format!("Remove-NetFirewallRule -DisplayName '{name}' -ErrorAction SilentlyContinue")),
         dns("ipv4", "source=dhcp"),
         dns("ipv6", "source=dhcp"),
         ps(format!("Set-NetIPInterface -InterfaceIndex {idx} -AutomaticMetric Enabled -ErrorAction SilentlyContinue")),
@@ -329,7 +318,6 @@ mod tests {
 
         let name = rule_name(8080);
         assert!(cleanup[0].1.last().unwrap().contains(&format!("Remove-NetFirewallRule -DisplayName '{name}'")));
-        assert!(cleanup[0].1.last().unwrap().contains("Remove-NetFirewallRule -DisplayName 'OmniHub Reverse Tether 8080'"));
         assert!(cleanup.iter().any(|c| c.1.contains(&"source=dhcp".to_owned())));
         assert!(cleanup.last().unwrap().1.last().unwrap().contains("AutomaticMetric Enabled"));
     }

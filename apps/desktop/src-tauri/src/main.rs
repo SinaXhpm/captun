@@ -66,6 +66,9 @@ fn main() {
             commands::update_lists,
             commands::get_rule_hits,
             commands::test_rules,
+            commands::get_usage,
+            commands::reset_quota,
+            commands::add_quota,
         ])
         .run(tauri::generate_context!());
 

@@ -30,6 +30,9 @@ const COMMANDS: &[&str] = &[
     "update_lists",
     "get_rule_hits",
     "test_rules",
+    "get_usage",
+    "reset_quota",
+    "add_quota",
 ];
 
 fn main() {

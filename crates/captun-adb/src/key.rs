@@ -12,11 +12,6 @@
 //! with its owner and permissions given in the call that creates it, so it is
 //! never open to anyone else, not even for a moment. On Linux and macOS the
 //! key's folder is root's alone and the key is created `0600`.
-//!
-//! Captun was called OmniHub before, and phones may have allowed the key
-//! OmniHub made. [`take_over_key`] copies that key into place once, while
-//! Captun has none, but only if it passes the same checks; it never moves or
-//! deletes anything of OmniHub's.
 
 use std::{
     fs::{self, File},
@@ -206,88 +201,12 @@ pub(crate) fn ensure_key_with(path: &Path, guard: &dyn KeyGuard, memory: &KeyMem
     Ok(status)
 }
 
-/// What [`take_over_key`] did.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum KeyTakeover {
-    /// The earlier key passed every check and was copied into place.
-    Copied,
-    /// There is a key where it belongs already, or none to take over.
-    NotNeeded,
-    /// The earlier key was not taken, with why (for the log). It was left as
-    /// it is, and a new key is made when one is needed.
-    Refused(String),
-}
-
-/// Takes over the phone key OmniHub, as this program was called before, made
-/// at `earlier`, so phones that allowed it keep allowing this one: only while
-/// there is no key at `path` yet. The earlier key is used only if it passes
-/// the checks a key found at `path` must pass (see the module docs), on the
-/// very file held open, and it is then copied into a new key file made the way
-/// every new key is, private from the moment it exists. The earlier key and
-/// its folder are only read: never moved, changed or deleted, whatever is found.
-pub fn take_over_key(earlier: &Path, path: &Path) -> KeyTakeover {
-    take_over_key_with(earlier, path, &SystemGuard, &MEMORY)
-}
-
-pub(crate) fn take_over_key_with(earlier: &Path, path: &Path, guard: &dyn KeyGuard, memory: &KeyMemory) -> KeyTakeover {
-    // The reasons are the details for the log, not the sentences a phone
-    // command shows the user: no phone command is running.
-    let refused = KeyTakeover::Refused;
-    // Held for the whole takeover, so no phone command makes a key meanwhile.
-    let Ok(_held) = memory.take() else {
-        return refused("another phone command is checking the key".into());
-    };
-    // Anything where the key belongs, a link included, is left to `ensure_key`.
-    match fs::symlink_metadata(path) {
-        Ok(_) => return KeyTakeover::NotNeeded,
-        Err(e) if e.kind() == io::ErrorKind::NotFound => {}
-        Err(e) => return refused(format!("cannot look at {}: {e}", path.display())),
-    }
-    match fs::symlink_metadata(earlier) {
-        Ok(_) => {}
-        Err(e) if e.kind() == io::ErrorKind::NotFound => return KeyTakeover::NotNeeded,
-        Err(e) => return refused(format!("cannot look at {}: {e}", earlier.display())),
-    }
-    // Held open to the end, like the key: what is checked is what is read.
-    let _earlier_folder = match check_folder(folder_of(earlier), guard) {
-        Ok(folder) => folder,
-        Err((_, why)) => return refused(why),
-    };
-    let pem = match examine(earlier, guard) {
-        Ok(Found::Good(mut file)) => match read_pem(&mut file) {
-            Ok(pem) => pem,
-            Err(e) => return refused(format!("cannot read it: {e}")),
-        },
-        Ok(Found::Nothing) => return KeyTakeover::NotNeeded,
-        Ok(Found::Unfinished) => return refused("it is empty or cut short".into()),
-        Ok(Found::Foreign(why)) => return refused(why.into()),
-        Err((_, why)) => return refused(format!("it could not be checked: {why}")),
-    };
-    let _folder = match trusted_folder(path, guard) {
-        Ok(folder) => folder,
-        Err((_, why)) => return refused(format!("the folder for the new key is not safe to use: {why}")),
-    };
-    match write_new(path, guard, &pem) {
-        Ok(()) => KeyTakeover::Copied,
-        Err((_, why)) => refused(format!("it could not be copied: {why}")),
-    }
-}
-
 /// The folder `path` is in.
 fn folder_of(path: &Path) -> &Path {
     match path.parent() {
         Some(dir) if !dir.as_os_str().is_empty() => dir,
         _ => Path::new("."),
     }
-}
-
-/// The whole key in the file held open, from its start.
-fn read_pem(file: &mut File) -> io::Result<Zeroizing<String>> {
-    use std::io::{Seek, SeekFrom};
-    file.seek(SeekFrom::Start(0))?;
-    let mut pem = Zeroizing::new(String::new());
-    file.take(MAX_KEY_FILE).read_to_string(&mut pem)?;
-    Ok(pem)
 }
 
 /// Why a step failed: the plain sentence a phone command shows the user, and
@@ -1291,87 +1210,5 @@ mod tests {
         ] {
             assert!(!sddl::owner_is_admin(text), "{text:?} must not pass");
         }
-    }
-
-    #[test]
-    fn omnihubs_own_key_is_taken_over_and_left_where_it_was() {
-        let path = key_path("takeover");
-        let earlier = path.with_file_name("omnihub").join("adbkey");
-        fs::create_dir_all(earlier.parent().unwrap()).unwrap();
-        fs::write(&earlier, test_pem().as_bytes()).unwrap();
-        let stub = Stub::new(Some(OURS), true);
-
-        assert_eq!(take_over_key_with(&earlier, &path, &stub, &KeyMemory::default()), KeyTakeover::Copied);
-        assert_eq!(fs::read_to_string(&path).unwrap(), *test_pem(), "the same key, so phones keep allowing it");
-        assert_eq!(stub.creates.load(Ordering::SeqCst), 1, "made the way a new key is");
-        assert_eq!(fs::read_to_string(&earlier).unwrap(), *test_pem(), "OmniHub's key stays");
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            assert_eq!(fs::metadata(&path).unwrap().permissions().mode() & 0o777, 0o600);
-        }
-        // Captun has one now: nothing more to take over, and it is its own.
-        assert_eq!(take_over_key_with(&earlier, &path, &stub, &KeyMemory::default()), KeyTakeover::NotNeeded);
-        assert_eq!(ensure_key_with(&path, &stub, &KeyMemory::default()).unwrap(), KeyStatus::Existing);
-        cleanup(&path);
-    }
-
-    #[test]
-    fn an_earlier_key_that_fails_the_checks_is_never_taken_or_touched() {
-        let path = key_path("takeover-refused");
-        let earlier = path.with_file_name("omnihub").join("adbkey");
-        fs::create_dir_all(earlier.parent().unwrap()).unwrap();
-        fs::write(&earlier, test_pem().as_bytes()).unwrap();
-        let mut not_their_folder = Stub::new(Some(OURS), true);
-        not_their_folder.folder_owned = false;
-        // The reason is the detail for the log: no phone command was running,
-        // so it never says USB to phone did not start.
-        let refused_for_its_own_reason = |taken: &KeyTakeover| match taken {
-            KeyTakeover::Refused(why) => !why.is_empty() && !why.contains("USB to phone"),
-            _ => false,
-        };
-        for stub in [
-            Stub::new(Some(FOREIGN_OWNER), true),
-            Stub::new(Some(USERS_CAN_READ), true),
-            Stub::new(None, true),
-            not_their_folder,
-        ] {
-            let taken = take_over_key_with(&earlier, &path, &stub, &KeyMemory::default());
-            assert!(refused_for_its_own_reason(&taken), "{taken:?}");
-            assert!(!path.exists(), "no key is made from it");
-            assert_eq!(stub.creates.load(Ordering::SeqCst), 0);
-            assert_eq!(fs::read_to_string(&earlier).unwrap(), *test_pem(), "never moved or changed");
-            assert!(set_aside(&earlier).is_empty());
-        }
-
-        // A key of its own, but cut short.
-        fs::write(&earlier, "-----BEGIN PRIVATE KEY-----").unwrap();
-        let taken = take_over_key_with(&earlier, &path, &Stub::new(Some(OURS), true), &KeyMemory::default());
-        assert!(refused_for_its_own_reason(&taken), "{taken:?}");
-        assert!(!path.exists() && earlier.exists());
-
-        // A key that cannot be made private leaves nothing behind.
-        fs::write(&earlier, test_pem().as_bytes()).unwrap();
-        let taken = take_over_key_with(&earlier, &path, &Stub::new(Some(OURS), false), &KeyMemory::default());
-        assert!(refused_for_its_own_reason(&taken), "{taken:?}");
-        assert!(!path.exists());
-        cleanup(&path);
-    }
-
-    #[test]
-    fn nothing_is_taken_over_without_an_earlier_key_or_with_a_key_already_there() {
-        let path = key_path("takeover-none");
-        let earlier = path.with_file_name("omnihub").join("adbkey");
-        let stub = Stub::new(Some(OURS), true);
-        assert_eq!(take_over_key_with(&earlier, &path, &stub, &KeyMemory::default()), KeyTakeover::NotNeeded);
-        assert!(!path.exists());
-
-        fs::create_dir_all(earlier.parent().unwrap()).unwrap();
-        fs::write(&earlier, test_pem().as_bytes()).unwrap();
-        fs::write(&path, "Captun's own").unwrap();
-        assert_eq!(take_over_key_with(&earlier, &path, &stub, &KeyMemory::default()), KeyTakeover::NotNeeded);
-        assert_eq!(fs::read_to_string(&path).unwrap(), "Captun's own");
-        assert_eq!(stub.checks.load(Ordering::SeqCst), 0, "the earlier key was not even looked at");
-        cleanup(&path);
     }
 }

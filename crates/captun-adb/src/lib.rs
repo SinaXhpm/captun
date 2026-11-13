@@ -34,7 +34,7 @@ mod runner;
 pub use caution::{SessionSummary, post_session_caution};
 pub use command::UsbFunction;
 pub use device::{AdbDevice, DeviceState};
-pub use key::{KeyStatus, KeyTakeover, take_over_key};
+pub use key::KeyStatus;
 pub use link::{link_down_command, link_hint, link_up_command};
 pub use plan::{AdbOp, ReversiblePlan};
 pub use reverse::{HelperApp, ReverseMethod, ReverseParams, reverse_plan};

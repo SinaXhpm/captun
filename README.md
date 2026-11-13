@@ -63,7 +63,9 @@ root and without installing any app on the phone.
 - **Its own DNS server:** cache, blocklist, custom answers, DNS servers over
   UDP, TCP, DNS over TLS (DoT) or DNS over HTTPS (DoH), per device, and an
   option to make devices use it.
-- **Speed limits** per device or group.
+- **Speed limits and data allowances** per device, per group or for every
+  device (for example 2 GB a day, then slowed down), and a **Usage** page
+  that shows what each device used per hour or per day.
 - **What devices can reach:** keep them away from this computer, from each
   other or from your home network.
 - **A desktop app** that starts and talks to the Captun service for you.
@@ -127,12 +129,12 @@ by your account on that computer. Every option is described in
 <summary>Running the service by hand</summary>
 
 ```bash
-# Windows (elevated prompt; `whoami /user` shows your SID)
-target\debug\captun-daemon.exe --token-file %LOCALAPPDATA%\Captun\ipc.token --allow-user <your SID>
-# Linux
-sudo target/debug/captun-daemon --token-file $XDG_RUNTIME_DIR/captun/ipc.token
-# macOS
-sudo target/debug/captun-daemon --token-file ~/Library/Application\ Support/Captun/ipc.token --owner-uid $(id -u)
+# Windows (elevated prompt; `whoami /user` shows your SID): the app's key goes
+# in the service's data folder, %ProgramData%\Captun, readable by that account
+target\debug\captun-daemon.exe --allow-user <your SID>
+# Linux and macOS: the app's key goes beside the service's socket, in
+# /run/captun (Linux) or /var/run/captun (macOS), for the account that ran sudo
+sudo target/debug/captun-daemon
 ```
 
 Run this way, the service reads a plain config file:
@@ -170,8 +172,9 @@ built-in adb does the rest. The phone uses your computer's internet, never
 the other way round.
 
 **Can different devices use different connections?**
-Yes. Every device or group can have its own outbound, its own DNS servers
-and its own speed limit, and rules can send single websites another way.
+Yes. Every device or group can have its own outbound, its own DNS servers,
+its own speed limit and its own data allowance, and rules can send single
+websites another way.
 
 **Does Captun read my devices' traffic?**
 No. It routes traffic and reads only what it needs to apply your rules (such
@@ -199,7 +202,7 @@ Compatibility signature.
 
 ---
 
-<sub>Captun was called OmniHub before. Keywords: Wi-Fi hotspot manager,
+<sub>Keywords: Wi-Fi hotspot manager,
 internet sharing, share VPN over hotspot, reverse tethering, USB tethering
 Android without root, per-device routing, SOCKS5 proxy sharing, Xray, V2Ray,
 VLESS, Shadowsocks, DNS ad blocker, Windows mobile hotspot, Linux hotspot.</sub>

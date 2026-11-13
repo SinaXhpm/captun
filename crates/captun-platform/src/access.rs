@@ -203,16 +203,6 @@ fn dhcp_rule_name(network: Ipv4Addr) -> String {
     format!("Captun-DHCP-{}", network.to_string().replace('.', "-"))
 }
 
-/// The NAT and the DHCP rule as this program named them when it was called
-/// OmniHub. A run of it that stopped abruptly may have left them behind: the
-/// rule would let DHCP in for nothing, and WinNAT refuses a second NAT for
-/// the same addresses.
-#[cfg(any(windows, test))]
-fn earlier_names(network: Ipv4Addr) -> (String, String) {
-    let network = network.to_string().replace('.', "-");
-    (format!("OmniHub-{network}"), format!("OmniHub-DHCP-{network}"))
-}
-
 /// Windows steps: assign the gateway address with `New-NetIPAddress` and, for
 /// basic internet, a WinNAT instance for the subnet. Every value in a script is
 /// a number, an address or a name made from those, never the adapter's name.
@@ -224,7 +214,6 @@ fn windows_steps(setup: &AccessSetup) -> Vec<Step> {
     let prefix = format!("{}/{}", setup.network, setup.prefix_len);
     let nat = nat_name(setup.network);
     let rule = dhcp_rule_name(setup.network);
-    let (earlier_nat, earlier_rule) = earlier_names(setup.network);
     let powershell = crate::tools::system_tool(crate::tools::POWERSHELL);
     let ps = |script: String| argv(&powershell, &["-NoProfile", "-NonInteractive", "-Command", &script]);
 
@@ -243,7 +232,6 @@ fn windows_steps(setup: &AccessSetup) -> Vec<Step> {
         step(
             ps(format!(
                 "Remove-NetFirewallRule -Name '{rule}' -ErrorAction SilentlyContinue; \
-                 Remove-NetFirewallRule -Name '{earlier_rule}' -ErrorAction SilentlyContinue; \
                  $adapter = (Get-NetIPInterface -InterfaceIndex {idx} -AddressFamily IPv4 -ErrorAction Stop).InterfaceAlias; \
                  New-NetFirewallRule -Name '{rule}' -DisplayName 'Captun DHCP {prefix}' -Direction Inbound -Action Allow \
                  -Protocol UDP -LocalPort 67 -InterfaceAlias ([WildcardPattern]::Escape($adapter)) -ErrorAction Stop | Out-Null"
@@ -253,10 +241,7 @@ fn windows_steps(setup: &AccessSetup) -> Vec<Step> {
     ];
     if setup.nat {
         steps.push(step(
-            ps(format!(
-                "Remove-NetNat -Name '{earlier_nat}' -Confirm:$false -ErrorAction SilentlyContinue; \
-                 New-NetNat -Name '{nat}' -InternalIPInterfaceAddressPrefix {prefix} -ErrorAction Stop | Out-Null"
-            )),
+            ps(format!("New-NetNat -Name '{nat}' -InternalIPInterfaceAddressPrefix {prefix} -ErrorAction Stop | Out-Null")),
             Some(ps(format!("Remove-NetNat -Name '{nat}' -Confirm:$false -ErrorAction SilentlyContinue"))),
         ));
     }
@@ -418,8 +403,6 @@ mod tests {
         assert!(script(&apply[1]).contains("-InterfaceAlias ([WildcardPattern]::Escape($adapter))"));
         assert!(script(&apply[2]).contains("New-NetNat -Name 'Captun-10-73-0-0'"));
         assert!(script(&apply[2]).contains("10.73.0.0/24"));
-        // One left behind under the earlier name would stop it, so it goes first.
-        assert!(script(&apply[2]).starts_with("Remove-NetNat -Name 'OmniHub-10-73-0-0' -Confirm:$false -ErrorAction SilentlyContinue;"));
         // Cleanup removes the NAT first, then the firewall rule, then the address.
         assert_eq!(cleanup.len(), 3);
         assert!(script(&cleanup[0]).contains("Remove-NetNat"));
@@ -447,8 +430,6 @@ mod tests {
         assert!(script(&apply[1]).starts_with("Remove-NetFirewallRule -Name 'Captun-DHCP-10-73-0-0' -ErrorAction SilentlyContinue;"));
         assert!(script(&apply[1]).contains("New-NetFirewallRule -Name 'Captun-DHCP-10-73-0-0' -DisplayName 'Captun DHCP 10.73.0.0/24'"));
         assert_eq!(script(&cleanup[0]), "Remove-NetFirewallRule -Name 'Captun-DHCP-10-73-0-0' -ErrorAction SilentlyContinue");
-        // A leftover under the earlier name goes too.
-        assert!(script(&apply[1]).contains("Remove-NetFirewallRule -Name 'OmniHub-DHCP-10-73-0-0' -ErrorAction SilentlyContinue;"));
         assert_ne!(dhcp_rule_name(Ipv4Addr::new(10, 73, 0, 0)), dhcp_rule_name(Ipv4Addr::new(10, 74, 0, 0)));
     }
 

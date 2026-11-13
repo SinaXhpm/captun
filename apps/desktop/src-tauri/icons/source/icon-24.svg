@@ -1,30 +1,30 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24"><defs>
   <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-    <stop offset="0" stop-color="#122c63"/><stop offset="0.55" stop-color="#0a1a3f"/><stop offset="1" stop-color="#040b1e"/>
+    <stop offset="0" stop-color="#17293b"/><stop offset="0.55" stop-color="#0d1a27"/><stop offset="1" stop-color="#060d15"/>
   </linearGradient>
   <radialGradient id="bgGlow" cx="0.5" cy="0.5" r="0.58">
-    <stop offset="0" stop-color="#1f62c4" stop-opacity="0.5"/><stop offset="1" stop-color="#1f62c4" stop-opacity="0"/>
+    <stop offset="0" stop-color="#c98b2e" stop-opacity="0.3"/><stop offset="1" stop-color="#c98b2e" stop-opacity="0"/>
   </radialGradient>
   <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
     <stop offset="0" stop-color="#ffffff" stop-opacity="0.13"/><stop offset="0.32" stop-color="#ffffff" stop-opacity="0"/>
   </linearGradient>
   <linearGradient id="ink" gradientUnits="userSpaceOnUse" x1="7.734" y1="2.578" x2="16.266" y2="21.422">
-    <stop offset="0" stop-color="#2af3f0"/><stop offset="0.5" stop-color="#1fb0f2"/><stop offset="1" stop-color="#1c5fe6"/>
+    <stop offset="0" stop-color="#f7dc92"/><stop offset="0.5" stop-color="#e3b04e"/><stop offset="1" stop-color="#a8741f"/>
   </linearGradient>
   <linearGradient id="inkSmall" gradientUnits="userSpaceOnUse" x1="7.734" y1="2.578" x2="16.266" y2="21.422">
-    <stop offset="0" stop-color="#3cf4f2"/><stop offset="0.5" stop-color="#25b6f5"/><stop offset="1" stop-color="#2470f2"/>
+    <stop offset="0" stop-color="#fbe4a6"/><stop offset="0.5" stop-color="#ecbe5e"/><stop offset="1" stop-color="#c18a30"/>
   </linearGradient>
   <linearGradient id="trail" x1="0" y1="0" x2="1" y2="0">
-    <stop offset="0" stop-color="#7ff3ff" stop-opacity="0"/><stop offset="1" stop-color="#9ff7ff" stop-opacity="0.8"/>
+    <stop offset="0" stop-color="#ffe2a0" stop-opacity="0"/><stop offset="1" stop-color="#fff0c8" stop-opacity="0.8"/>
   </linearGradient>
   <radialGradient id="core" cx="0.36" cy="0.3" r="0.82">
-    <stop offset="0" stop-color="#ecfeff"/><stop offset="0.25" stop-color="#6ee9fd"/><stop offset="0.68" stop-color="#1fa3f2"/><stop offset="1" stop-color="#1660df"/>
+    <stop offset="0" stop-color="#fffaf0"/><stop offset="0.25" stop-color="#f7d98c"/><stop offset="0.68" stop-color="#e0a947"/><stop offset="1" stop-color="#9c6a1d"/>
   </radialGradient>
   <radialGradient id="halo">
-    <stop offset="0" stop-color="#3fdcff" stop-opacity="0.72"/><stop offset="0.42" stop-color="#2aa8ff" stop-opacity="0.24"/><stop offset="1" stop-color="#2aa8ff" stop-opacity="0"/>
+    <stop offset="0" stop-color="#ffd57a" stop-opacity="0.72"/><stop offset="0.42" stop-color="#f0b44a" stop-opacity="0.24"/><stop offset="1" stop-color="#f0b44a" stop-opacity="0"/>
   </radialGradient>
   <radialGradient id="spark">
-    <stop offset="0" stop-color="#ffffff"/><stop offset="0.5" stop-color="#c8f8ff"/><stop offset="1" stop-color="#5fe0ff"/>
+    <stop offset="0" stop-color="#ffffff"/><stop offset="0.5" stop-color="#ffefc2"/><stop offset="1" stop-color="#f3c96a"/>
   </radialGradient>
   <filter id="glow" x="-25%" y="-25%" width="150%" height="150%">
     <feGaussianBlur stdDeviation="0.164" result="b"/>

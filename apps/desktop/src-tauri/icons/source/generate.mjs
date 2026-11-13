@@ -15,36 +15,36 @@ const pt = (cx, cy, r, deg) => {
 };
 
 // Gradients are in user space scaled to the drawing, so small sizes keep the
-// same cyan-to-blue sweep.
+// same brass sweep.
 function defs(S) {
   const k = S / 1024;
   return `<defs>
   <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-    <stop offset="0" stop-color="#122c63"/><stop offset="0.55" stop-color="#0a1a3f"/><stop offset="1" stop-color="#040b1e"/>
+    <stop offset="0" stop-color="#17293b"/><stop offset="0.55" stop-color="#0d1a27"/><stop offset="1" stop-color="#060d15"/>
   </linearGradient>
   <radialGradient id="bgGlow" cx="0.5" cy="0.5" r="0.58">
-    <stop offset="0" stop-color="#1f62c4" stop-opacity="0.5"/><stop offset="1" stop-color="#1f62c4" stop-opacity="0"/>
+    <stop offset="0" stop-color="#c98b2e" stop-opacity="0.3"/><stop offset="1" stop-color="#c98b2e" stop-opacity="0"/>
   </radialGradient>
   <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
     <stop offset="0" stop-color="#ffffff" stop-opacity="0.13"/><stop offset="0.32" stop-color="#ffffff" stop-opacity="0"/>
   </linearGradient>
   <linearGradient id="ink" gradientUnits="userSpaceOnUse" x1="${f(330 * k)}" y1="${f(110 * k)}" x2="${f(694 * k)}" y2="${f(914 * k)}">
-    <stop offset="0" stop-color="#2af3f0"/><stop offset="0.5" stop-color="#1fb0f2"/><stop offset="1" stop-color="#1c5fe6"/>
+    <stop offset="0" stop-color="#f7dc92"/><stop offset="0.5" stop-color="#e3b04e"/><stop offset="1" stop-color="#a8741f"/>
   </linearGradient>
   <linearGradient id="inkSmall" gradientUnits="userSpaceOnUse" x1="${f(330 * k)}" y1="${f(110 * k)}" x2="${f(694 * k)}" y2="${f(914 * k)}">
-    <stop offset="0" stop-color="#3cf4f2"/><stop offset="0.5" stop-color="#25b6f5"/><stop offset="1" stop-color="#2470f2"/>
+    <stop offset="0" stop-color="#fbe4a6"/><stop offset="0.5" stop-color="#ecbe5e"/><stop offset="1" stop-color="#c18a30"/>
   </linearGradient>
   <linearGradient id="trail" x1="0" y1="0" x2="1" y2="0">
-    <stop offset="0" stop-color="#7ff3ff" stop-opacity="0"/><stop offset="1" stop-color="#9ff7ff" stop-opacity="0.8"/>
+    <stop offset="0" stop-color="#ffe2a0" stop-opacity="0"/><stop offset="1" stop-color="#fff0c8" stop-opacity="0.8"/>
   </linearGradient>
   <radialGradient id="core" cx="0.36" cy="0.3" r="0.82">
-    <stop offset="0" stop-color="#ecfeff"/><stop offset="0.25" stop-color="#6ee9fd"/><stop offset="0.68" stop-color="#1fa3f2"/><stop offset="1" stop-color="#1660df"/>
+    <stop offset="0" stop-color="#fffaf0"/><stop offset="0.25" stop-color="#f7d98c"/><stop offset="0.68" stop-color="#e0a947"/><stop offset="1" stop-color="#9c6a1d"/>
   </radialGradient>
   <radialGradient id="halo">
-    <stop offset="0" stop-color="#3fdcff" stop-opacity="0.72"/><stop offset="0.42" stop-color="#2aa8ff" stop-opacity="0.24"/><stop offset="1" stop-color="#2aa8ff" stop-opacity="0"/>
+    <stop offset="0" stop-color="#ffd57a" stop-opacity="0.72"/><stop offset="0.42" stop-color="#f0b44a" stop-opacity="0.24"/><stop offset="1" stop-color="#f0b44a" stop-opacity="0"/>
   </radialGradient>
   <radialGradient id="spark">
-    <stop offset="0" stop-color="#ffffff"/><stop offset="0.5" stop-color="#c8f8ff"/><stop offset="1" stop-color="#5fe0ff"/>
+    <stop offset="0" stop-color="#ffffff"/><stop offset="0.5" stop-color="#ffefc2"/><stop offset="1" stop-color="#f3c96a"/>
   </radialGradient>
   <filter id="glow" x="-25%" y="-25%" width="150%" height="150%">
     <feGaussianBlur stdDeviation="${f(7 * k)}" result="b"/>
@@ -74,7 +74,7 @@ function helmFull(cx, cy, k) {
   const ring = (r, w) => ink(`M${f(cx - r)} ${f(cy)}a${f(r)} ${f(r)} 0 1 0 ${f(2 * r)} 0a${f(r)} ${f(r)} 0 1 0 ${f(-2 * r)} 0`, w);
   const node = (x, y, r) =>
     `<circle cx="${x}" cy="${y}" r="${f(r * 2.4)}" fill="url(#halo)"/><circle cx="${x}" cy="${y}" r="${f(r)}" fill="url(#core)"/>` +
-    `<circle cx="${x}" cy="${y}" r="${f(r * 0.97)}" fill="none" stroke="#c8f8ff" stroke-opacity="0.35" stroke-width="${f(Math.max(1.5 * k, r / 25))}"/>` +
+    `<circle cx="${x}" cy="${y}" r="${f(r * 0.97)}" fill="none" stroke="#ffefc2" stroke-opacity="0.35" stroke-width="${f(Math.max(1.5 * k, r / 25))}"/>` +
     `<ellipse cx="${f(x - r * 0.3)}" cy="${f(y - r * 0.36)}" rx="${f(r * 0.3)}" ry="${f(r * 0.19)}" fill="#fff" fill-opacity="0.7" filter="url(#blur3)" transform="rotate(-30 ${f(x - r * 0.3)} ${f(y - r * 0.36)})"/>`;
   const spark = (r, deg, size) => {
     const [x, y] = pt(cx, cy, r, deg);
@@ -154,10 +154,10 @@ for (const S of SIZES) {
 // Preview sheet: the tuned sizes next to the full drawing scaled down.
 const cells = SIZES.map((S) => `<div><img src="icon-${S}.svg" width="${S}" height="${S}"><img src="icon.svg" width="${S}" height="${S}"><img src="mark-${S}.svg" width="${S}" height="${S}" class="m"><span>${S}</span></div>`).join("");
 writeFileSync(join(out, "preview.html"), `<!doctype html><meta charset="utf-8"><style>
-body{margin:0;padding:20px;background:#071430;color:#8ea6cc;font:12px system-ui;image-rendering:pixelated}
+body{margin:0;padding:20px;background:#0a1521;color:#b9ab8f;font:12px system-ui;image-rendering:pixelated}
 .big{display:flex;gap:20px;margin-bottom:20px}.row{display:flex;gap:24px;align-items:end}
 .row div{display:flex;flex-direction:column;gap:6px;align-items:center}
-.row img{zoom:3}.m{background:#0d1f42}
+.row img{zoom:3}.m{background:#112130}
 .light{background:#f2f5fa;padding:10px;border-radius:10px;display:flex;gap:10px}
-</style><div class="big"><img src="icon.svg" width="256"><img src="icon-mac.svg" width="256"><img src="mark.svg" width="256" style="background:#0d1f42"><div class="light"><img src="mark.svg" width="96"><img src="mark-24.svg" width="24"><img src="mark-16.svg" width="16"></div></div><div class="row">${cells}</div>`);
+</style><div class="big"><img src="icon.svg" width="256"><img src="icon-mac.svg" width="256"><img src="mark.svg" width="256" style="background:#112130"><div class="light"><img src="mark.svg" width="96"><img src="mark-24.svg" width="24"><img src="mark-16.svg" width="16"></div></div><div class="row">${cells}</div>`);
 console.log("wrote final sources to", out);

@@ -3,7 +3,8 @@
 The logo is the "network helm": a ship's wheel, for the captain in Captun, drawn
 as a network. The glowing hub is this computer, the six spokes are links, the
 handles are the devices, and two sparks carry data out to them. It keeps the
-navy tile and the cyan-to-blue glow the whole app is themed on. These SVGs are
+navy tile, the sea at night, and the brass of the helm the whole app is themed
+on (a captain's bridge at night). These SVGs are
 the source of every icon in the parent folder. `generate.mjs` writes all of
 them (`node generate.mjs <out dir>`), so change the drawing there rather than
 in the SVGs:

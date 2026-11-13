@@ -294,3 +294,29 @@ pub(crate) async fn set_reverse_tether(
         other => Err(CommandError::unexpected(&other)),
     }
 }
+
+/// Data use over time: what was used between each two neighbouring `bounds`
+/// (ms since the epoch), by one device or all, and by each device.
+#[tauri::command]
+pub(crate) async fn get_usage(
+    state: State<'_, AppState>,
+    bounds: Vec<u64>,
+    device: Option<MacAddr>,
+) -> CommandResult<captun_ipc::UsageReport> {
+    match state.call(Request::GetUsage { bounds, device }).await? {
+        Response::Usage(report) => Ok(report),
+        other => Err(CommandError::unexpected(&other)),
+    }
+}
+
+/// Starts a device's data allowance over now.
+#[tauri::command]
+pub(crate) async fn reset_quota(state: State<'_, AppState>, mac: MacAddr) -> CommandResult<()> {
+    expect_ok(&state, Request::ResetQuota { mac }).await
+}
+
+/// Gives a device `mb` more megabytes for this period of its allowance.
+#[tauri::command]
+pub(crate) async fn add_quota(state: State<'_, AppState>, mac: MacAddr, mb: u64) -> CommandResult<()> {
+    expect_ok(&state, Request::AddQuota { mac, mb }).await
+}

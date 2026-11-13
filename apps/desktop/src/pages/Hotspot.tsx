@@ -1,28 +1,14 @@
 import { useState } from "react";
-import { Eye, EyeOff, Info, Play, RefreshCw, Settings2, Wifi, WifiOff } from "lucide-react";
+import { Eye, EyeOff, Info, Play, RefreshCw, Wifi, WifiOff } from "lucide-react";
 import { api, errorMessage } from "../api";
 import { Field, Toggle } from "../components/Form";
 import { Modal } from "../components/Modal";
-import { CopyValue } from "../components/CopyValue";
+import { generatePassphrase } from "../passphrase";
 import { useServiceCore, useServiceStatus } from "../service";
-import { ADMIN_PROMPT, serviceRunning, startServiceAndWait } from "../system";
-import type { Config, HotspotSupport, WifiBand } from "../types";
+import { ADMIN_PROMPT, PLATFORM, serviceRunning, startServiceAndWait, useAdapters } from "../system";
+import type { Config, HotspotSupport, InterfaceInfo, WifiBand } from "../types";
 import { validateMaxClients, validatePassphrase, validateSsid } from "../validation";
 import type { ShareMode } from "./share";
-
-const PASS_ALPHABET = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-
-/** 12 characters from an alphabet without look-alikes, without modulo bias. */
-function generatePassphrase(length = 12): string {
-  const limit = 256 - (256 % PASS_ALPHABET.length);
-  const out: string[] = [];
-  while (out.length < length) {
-    for (const b of crypto.getRandomValues(new Uint8Array(32))) {
-      if (b < limit && out.length < length) out.push(PASS_ALPHABET[b % PASS_ALPHABET.length] ?? "");
-    }
-  }
-  return out.join("");
-}
 
 type Step = "save" | "service" | "start";
 
@@ -36,11 +22,13 @@ interface Form {
   ssid: string;
   passphrase: string;
   band: WifiBand;
+  /** The Wi-Fi adapter that hosts it; empty lets the system choose. */
+  adapter: string;
   maxClients: string;
   autostart: boolean;
 }
 
-const DEFAULT_FORM: Form = { ssid: "Captun", passphrase: "", band: "auto", maxClients: "", autostart: true };
+const DEFAULT_FORM: Form = { ssid: "Captun", passphrase: "", band: "auto", adapter: "", maxClients: "", autostart: true };
 
 function fromConfig(config: Config | null): Form {
   if (!config) return DEFAULT_FORM;
@@ -49,6 +37,7 @@ function fromConfig(config: Config | null): Form {
     ssid: h.ssid,
     passphrase: h.passphrase ?? "",
     band: h.band,
+    adapter: h.interface ?? "",
     maxClients: h.max_clients != null ? String(h.max_clients) : "",
     autostart: h.autostart,
   };
@@ -58,6 +47,9 @@ function applyForm(draft: Config, form: Form) {
   draft.hotspot.ssid = form.ssid;
   draft.hotspot.passphrase = form.passphrase;
   draft.hotspot.band = form.band;
+  // No adapter must be omitted, not sent as null, so serde's default applies.
+  if (form.adapter === "") delete draft.hotspot.interface;
+  else draft.hotspot.interface = form.adapter;
   draft.hotspot.autostart = form.autostart;
   const max = form.maxClients.trim();
   // An empty limit must be omitted, not sent as null, so serde's default applies.
@@ -140,7 +132,8 @@ export function useHotspot(support: HotspotSupport | null): ShareMode {
       notice={support?.notice ?? null}
       onClose={() => setEditing(false)}
       onSave={async (form) => {
-        const radio = form.ssid !== saved.ssid || form.passphrase !== saved.passphrase || form.band !== saved.band;
+        const radio =
+          form.ssid !== saved.ssid || form.passphrase !== saved.passphrase || form.band !== saved.band || form.adapter !== saved.adapter;
         // The service restarts a running hotspot itself when its radio settings change.
         const ok = await saveConfig(
           (c) => applyForm(c, form),
@@ -155,13 +148,14 @@ export function useHotspot(support: HotspotSupport | null): ShareMode {
     />
   ) : null;
 
-  const settingsLink = configured ? (
-    <button className="link-button" disabled={busy} onClick={() => setEditing(true)}>
-      <Settings2 size={13} aria-hidden="true" /> Wi-Fi settings
-    </button>
-  ) : null;
-
-  const base = { id: "wifi" as const, label: "Wi-Fi hotspot", icon: Wifi, active: on || busy, overlay };
+  const base = {
+    id: "wifi" as const,
+    label: "Wi-Fi hotspot",
+    icon: Wifi,
+    active: on || busy,
+    overlay,
+    settings: busy ? undefined : () => setEditing(true),
+  };
 
   if (unavailable) {
     return { ...base, icon: WifiOff, phase: "unavailable", action: null, status: "Wi-Fi hotspot is not available", detail: support?.reason };
@@ -175,15 +169,8 @@ export function useHotspot(support: HotspotSupport | null): ShareMode {
       ...base,
       phase: "on",
       action: { label: "Stop", run: () => void stop() },
-      status: `Sharing over Wi-Fi · ${devices}${limit != null ? ` of ${limit}` : ""} device${devices === 1 && limit == null ? "" : "s"}`,
-      detail: (
-        <div className="join">
-          <CopyValue label="Network" value={status?.hotspot.ssid ?? saved.ssid} />
-          <CopyValue label="Password" value={saved.passphrase} secret />
-        </div>
-      ),
-      // The devices are listed right below, with their own way to the Devices page.
-      links: settingsLink,
+      // What to join is right below, in the Wi-Fi settings Home shows.
+      status: `Sharing over Wi-Fi as “${status?.hotspot.ssid ?? saved.ssid}” · ${devices}${limit != null ? ` of ${limit}` : ""} device${devices === 1 && limit == null ? "" : "s"}`,
     };
   }
   if (!configured) {
@@ -209,7 +196,6 @@ export function useHotspot(support: HotspotSupport | null): ShareMode {
     ) : limit != null ? (
       `Up to ${limit} devices`
     ) : undefined,
-    links: settingsLink,
   };
 }
 
@@ -242,6 +228,7 @@ function HotspotSettings({ config, on, configured, bandSupported, osLimit, notic
     form.ssid !== saved.ssid ||
     form.passphrase !== saved.passphrase ||
     form.band !== saved.band ||
+    form.adapter !== saved.adapter ||
     form.maxClients.trim() !== saved.maxClients ||
     form.autostart !== saved.autostart;
 
@@ -311,6 +298,7 @@ function HotspotSettings({ config, on, configured, bandSupported, osLimit, notic
             <option value="6ghz">6 GHz</option>
           </select>
         </Field>
+        <AdapterField value={form.adapter} onChange={(adapter) => update({ adapter })} />
         <Field label="Maximum devices" error={maxError} hint={osLimit != null ? `Empty: system limit (${osLimit}).` : "Empty: no limit."}>
           <input
             type="number"
@@ -332,5 +320,41 @@ function HotspotSettings({ config, on, configured, bandSupported, osLimit, notic
         </p>
       )}
     </Modal>
+  );
+}
+
+/** Wi-Fi adapters that could host a hotspot: real ones, not the hotspot's own. */
+function wifiAdapters(list: InterfaceInfo[] | null): InterfaceInfo[] {
+  return (list ?? []).filter((i) => i.kind === "wifi" && i.physical && !i.is_hotspot);
+}
+
+/**
+ * Which Wi-Fi adapter hosts the hotspot, for a computer with more than one
+ * (a USB Wi-Fi adapter beside the built-in one, say). Automatic lets the
+ * system pick, as before.
+ */
+function AdapterField({ value, onChange }: { value: string; onChange: (adapter: string) => void }) {
+  const { adapters } = useAdapters();
+  const wifi = wifiAdapters(adapters);
+  const missing = value !== "" && adapters !== null && !wifi.some((a) => a.name === value);
+  const hint =
+    PLATFORM === "windows"
+      ? "Windows runs one hotspot at a time, on the adapter picked here."
+      : wifi.length > 1
+        ? "The hotspot runs on the adapter picked here."
+        : undefined;
+  return (
+    <Field label="Wi-Fi adapter" hint={missing ? undefined : hint} error={missing ? "This adapter is not connected or is turned off." : null}>
+      <select value={value} onChange={(e) => onChange(e.target.value)}>
+        <option value="">Automatic</option>
+        {missing && <option value={value}>{value} (not found)</option>}
+        {wifi.map((a) => (
+          <option key={a.name} value={a.name} title={a.description ?? undefined}>
+            {a.description && a.description !== a.name ? `${a.name} · ${a.description}` : a.name}
+            {a.up ? "" : " (off)"}
+          </option>
+        ))}
+      </select>
+    </Field>
   );
 }

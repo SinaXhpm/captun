@@ -327,19 +327,11 @@ fn firewall_rule(subnet: Ipv4Net) -> String {
 /// Every such rule carries this group, so leftovers can be found.
 #[cfg_attr(not(windows), allow(dead_code))]
 const FIREWALL_GROUP: &str = "Captun devices";
-/// The group the same rules had when this program was called OmniHub, whose
-/// leftovers are lifted too.
-#[cfg_attr(not(windows), allow(dead_code))]
-const EARLIER_FIREWALL_GROUP: &str = "OmniHub devices";
 
-/// Lifts every such rule a run that stopped abruptly left behind, under this
-/// name or the earlier one.
+/// Lifts every such rule a run that stopped abruptly left behind.
 #[cfg_attr(not(windows), allow(dead_code))]
 fn clear_firewall() -> Argv {
-    powershell(format!(
-        "Remove-NetFirewallRule -Group '{FIREWALL_GROUP}' -ErrorAction SilentlyContinue; \
-         Remove-NetFirewallRule -Group '{EARLIER_FIREWALL_GROUP}' -ErrorAction SilentlyContinue"
-    ))
+    powershell(format!("Remove-NetFirewallRule -Group '{FIREWALL_GROUP}' -ErrorAction SilentlyContinue"))
 }
 
 #[cfg_attr(not(windows), allow(dead_code))]
@@ -414,28 +406,7 @@ mod windows {
 /// run that stopped abruptly is found and replaced.
 #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 fn chain(kind: &str, subnet: Ipv4Net) -> String {
-    chain_named("CAPTUN", kind, subnet)
-}
-
-#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
-fn chain_named(prefix: &str, kind: &str, subnet: Ipv4Net) -> String {
-    format!("{prefix}-{kind}-{}", subnet.network().to_string().replace('.', "-"))
-}
-
-/// Lifts the chains a run of this program from when it was called OmniHub
-/// may have left behind for the same network, whatever rules they held:
-/// unhooked, emptied, then removed.
-#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
-fn earlier_leftovers(config: &ReachConfig) -> Vec<Argv> {
-    let dev = config.interface.as_str();
-    let mut steps = Vec::new();
-    for (tool, kind, hook) in [("iptables", "IN", "INPUT"), ("iptables", "FWD", "FORWARD"), ("ip6tables", "IN6", "INPUT")] {
-        let name = chain_named("OMNIHUB", kind, config.subnet);
-        steps.push(argv(tool, &["-D", hook, "-i", dev, "-j", &name]));
-        steps.push(argv(tool, &["-F", &name]));
-        steps.push(argv(tool, &["-X", &name]));
-    }
-    steps
+    format!("CAPTUN-{kind}-{}", subnet.network().to_string().replace('.', "-"))
 }
 
 /// Commands that put rules in, and the commands that lift them.
@@ -534,7 +505,7 @@ fn linux_steps(config: &ReachConfig) -> (Plan, Plan) {
 
 #[cfg(target_os = "linux")]
 mod linux {
-    use super::{Argv, ReachConfig, ReachError, ReachGuard, command, earlier_leftovers, linux_steps, run_all};
+    use super::{Argv, ReachConfig, ReachError, ReachGuard, command, linux_steps, run_all};
 
     /// Runs commands whose failure only means there was nothing to undo.
     fn run_quietly(commands: &[Argv]) {
@@ -545,11 +516,9 @@ mod linux {
 
     pub(super) fn apply(config: &ReachConfig) -> Result<ReachGuard, ReachError> {
         let ((apply, cleanup), (apply6, cleanup6)) = linux_steps(config);
-        // A run that stopped abruptly may have left the same chains behind,
-        // or ones under the earlier name.
+        // A run that stopped abruptly may have left the same chains behind.
         run_quietly(&cleanup);
         run_quietly(&cleanup6);
-        run_quietly(&earlier_leftovers(config));
         if let Err(e) = run_all(&apply) {
             run_quietly(&cleanup);
             return Err(ReachError::Failed(format!("cannot hold devices back: {e}")));
@@ -673,29 +642,9 @@ mod tests {
     }
 
     #[test]
-    fn leftover_device_rules_are_lifted_under_the_earlier_name_too() {
+    fn leftover_device_rules_are_lifted_by_their_group() {
         let script = clear_firewall().1.last().unwrap().clone();
-        assert!(script.contains("Remove-NetFirewallRule -Group 'Captun devices' -ErrorAction SilentlyContinue"), "{script}");
-        assert!(script.contains("Remove-NetFirewallRule -Group 'OmniHub devices' -ErrorAction SilentlyContinue"), "{script}");
-
-        let lifted: Vec<String> = earlier_leftovers(&config(false, false, false))
-            .into_iter()
-            .map(|(program, args)| format!("{program} {}", args.join(" ")))
-            .collect();
-        assert_eq!(
-            lifted,
-            [
-                "iptables -D INPUT -i wlan0 -j OMNIHUB-IN-192-168-137-0",
-                "iptables -F OMNIHUB-IN-192-168-137-0",
-                "iptables -X OMNIHUB-IN-192-168-137-0",
-                "iptables -D FORWARD -i wlan0 -j OMNIHUB-FWD-192-168-137-0",
-                "iptables -F OMNIHUB-FWD-192-168-137-0",
-                "iptables -X OMNIHUB-FWD-192-168-137-0",
-                "ip6tables -D INPUT -i wlan0 -j OMNIHUB-IN6-192-168-137-0",
-                "ip6tables -F OMNIHUB-IN6-192-168-137-0",
-                "ip6tables -X OMNIHUB-IN6-192-168-137-0",
-            ]
-        );
+        assert_eq!(script, "Remove-NetFirewallRule -Group 'Captun devices' -ErrorAction SilentlyContinue");
     }
 
     #[test]

@@ -13,12 +13,12 @@ mod lists;
 mod local_access;
 mod local_dns;
 mod logging;
-mod migrate;
 mod monitor;
 mod names;
 mod paths;
 mod tether;
 mod traffic;
+mod usage;
 
 use std::path::{Path, PathBuf};
 
@@ -45,7 +45,9 @@ struct Args {
     /// Named pipe (Windows) or Unix socket path to listen on.
     #[arg(long)]
     endpoint: Option<String>,
-    /// Where to write the per-run IPC token for the GUI.
+    /// Where to write the per-run IPC token for the GUI. Its folder must be
+    /// one only root or administrators can change, as the default is (beside
+    /// the socket on Unix, the data folder on Windows).
     #[arg(long)]
     token_file: Option<PathBuf>,
     /// SID of the account allowed to open the service pipe and read the token
@@ -121,23 +123,6 @@ async fn main() -> anyhow::Result<()> {
             return Err(e).with_context(|| format!("cannot listen on {} (is another Captun service running?)", endpoint.as_str()));
         }
     };
-    // OmniHub, as Captun was called before, listens under its old name, so
-    // holding Captun's says nothing about it. Beside it the two would fight
-    // over the hotspot, and lifting OmniHub's leftovers would pull its rules
-    // out from under it. The app checks this before it starts the service;
-    // this covers a service started some other way.
-    if Endpoint::earlier_service().is_in_use() {
-        error!(
-            "OmniHub, Captun's earlier version, is still running ({}), so the Captun service does not start beside it. Restart the computer, or end omnihub-daemon, then start Captun again.",
-            Endpoint::earlier_service().as_str()
-        );
-        anyhow::bail!("OmniHub's service is still running");
-    }
-    // As the one service running, with OmniHub's not running, and before
-    // anything reads them: the lists and phone key OmniHub saved are taken
-    // over while Captun has none of its own.
-    let _ = tokio::task::spawn_blocking(migrate::from_omnihub).await;
-
     let (config_file, config) = if args.settings_from_gui {
         (None, take_legacy_config(&paths::default_config()))
     } else {
@@ -171,6 +156,8 @@ async fn main() -> anyhow::Result<()> {
     let monitor = tokio::spawn(monitor::run(hub.clone()));
     // Device speeds for the GUI, once a second while one is connected.
     let traffic = tokio::spawn(traffic::run(hub.clone()));
+    // Each device's data use, for the Usage page and the data allowances.
+    let usage = tokio::spawn(usage::run(hub.clone()));
     // With the GUI keeping the settings, autostart runs once they arrive.
     if config_file.is_some() {
         hub.autostart();
@@ -186,7 +173,10 @@ async fn main() -> anyhow::Result<()> {
     drop(token_file);
     monitor.abort();
     traffic.abort();
+    usage.abort();
     hub.shutdown().await;
+    // What was counted since the last save.
+    hub.save_usage().await;
     Ok(())
 }
 

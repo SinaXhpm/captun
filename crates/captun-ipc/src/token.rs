@@ -54,11 +54,15 @@ impl Token {
     /// Writes the token for the GUI to read and returns a guard that removes
     /// the file again, so no run (one that ends, fails to start or panics)
     /// leaves it behind. On Unix the file is mode 0600, handed to `owner_uid`
-    /// (the service usually runs as root via sudo or pkexec). On Windows it
-    /// gets a protected DACL of its own, whatever its folder allows: SYSTEM
-    /// and Administrators, and `reader_sid` (`S-1-…`, the GUI's user) to read
-    /// it, when given. Either way an existing file or link is replaced, never
-    /// written through.
+    /// (the service usually runs as root via sudo or pkexec) through the open
+    /// file, never by name. On Windows it gets a protected DACL of its own,
+    /// whatever its folder allows: SYSTEM and Administrators, and `reader_sid`
+    /// (`S-1-…`, the GUI's user) to read it, when given. Either way an
+    /// existing file or link is replaced, never written through, and its
+    /// folder must be one only root or administrators can change, such as
+    /// the service's own (beside its socket; on Windows its data folder): in
+    /// a folder of the user's, a program of theirs could swap in a link, and
+    /// the service would delete or make files wherever it leads.
     pub fn write_for(
         &self,
         path: &Path,
@@ -67,7 +71,7 @@ impl Token {
     ) -> Result<TokenFile, TokenError> {
         let err = |source| TokenError::Io { path: path.display().to_string(), source };
         if let Some(dir) = path.parent() {
-            fs::create_dir_all(dir).map_err(err)?;
+            create_folder(dir).map_err(err)?;
         }
         // Replace rather than overwrite, so a pre-planted file (or link)
         // with looser permissions never ends up holding the secret. Creating
@@ -94,17 +98,32 @@ impl Token {
         };
         // From here on, a failure takes the file away again.
         let written = TokenFile { path: path.to_owned(), keep: false };
+        // Through the open file, before the secret is in it: by name, the
+        // owner would change for whatever the name leads to by then.
+        #[cfg(unix)]
+        if let Some(uid) = owner_uid {
+            std::os::unix::fs::fchown(&file, Some(uid), None).map_err(err)?;
+        }
         {
             use std::io::Write;
             file.write_all(self.0.as_bytes()).map_err(err)?;
         }
         drop(file);
-        #[cfg(unix)]
-        if let Some(uid) = owner_uid {
-            std::os::unix::fs::chown(path, Some(uid), None).map_err(err)?;
-        }
         Ok(written)
     }
+}
+
+/// Makes `dir` if it is missing. On Unix it is made 0755, whatever the umask
+/// (sudo and pkexec pass on the user's), so nobody but root can put anything
+/// in the service's folder.
+fn create_folder(dir: &Path) -> io::Result<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::DirBuilderExt;
+        fs::DirBuilder::new().recursive(true).mode(0o755).create(dir)
+    }
+    #[cfg(not(unix))]
+    fs::create_dir_all(dir)
 }
 
 impl fmt::Debug for Token {
@@ -210,6 +229,33 @@ mod tests {
         assert_eq!(crate::transport::file_dacl(&path).unwrap(), "D:P(A;;FA;;;SY)(A;;FA;;;BA)");
         #[cfg(unix)]
         assert_eq!(Token::read(&path).unwrap(), token);
+        let _ = fs::remove_dir_all(path.parent().unwrap());
+    }
+
+    /// Handed over through the open file: the owner named is the owner of
+    /// the file made (here the test's own account, the one a test can give
+    /// a file to), with the secret readable by it alone.
+    #[cfg(unix)]
+    #[test]
+    fn the_file_goes_to_its_owner_through_the_open_file() {
+        use std::os::unix::fs::{MetadataExt, PermissionsExt};
+        let path = temp_file("owner");
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        let me = fs::metadata(path.parent().unwrap()).unwrap().uid();
+        let token = Token::generate();
+        let written = token.write_for(&path, Some(me), None).unwrap();
+        let meta = fs::symlink_metadata(&path).unwrap();
+        assert!(meta.is_file());
+        assert_eq!((meta.uid(), meta.permissions().mode() & 0o777), (me, 0o600));
+        assert_eq!(Token::read(&path).unwrap(), token);
+        drop(written);
+        assert!(!path.exists());
+        // A folder it has to make itself is made 0755, whatever the umask.
+        let nested = path.parent().unwrap().join("made").join("ipc.token");
+        let written = token.write_for(&nested, Some(me), None).unwrap();
+        let made = fs::metadata(nested.parent().unwrap()).unwrap().permissions().mode() & 0o777;
+        assert_eq!(made & 0o022, 0, "{made:o}");
+        drop(written);
         let _ = fs::remove_dir_all(path.parent().unwrap());
     }
 
